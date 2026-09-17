@@ -1,3 +1,5 @@
+// Styles are now in public/css/styles.css (served as static files).
+// This variable is kept for backward compatibility but is empty.
 const BASE_STYLES = `
   :root{
     --bg:#08080a; --bg2:#121214; --card:#141416; --line:#28282c;
@@ -285,20 +287,8 @@ const BASE_STYLES = `
   .error-box p{color:var(--gray);}
 `;
 
-const REVEAL_SCRIPT = `
-<script>
-  document.addEventListener('DOMContentLoaded', function(){
-    var els = document.querySelectorAll('.reveal');
-    if(!('IntersectionObserver' in window)){ els.forEach(function(e){e.classList.add('in');}); return; }
-    var io = new IntersectionObserver(function(entries){
-      entries.forEach(function(entry){
-        if(entry.isIntersecting){ entry.target.classList.add('in'); io.unobserve(entry.target); }
-      });
-    }, {threshold:.15});
-    els.forEach(function(e){ io.observe(e); });
-  });
-</script>
-`;
+// Reveal script is now in public/js/reveal.js (served as static file).
+const REVEAL_SCRIPT = '<script src="/js/reveal.js"></script>';
 
 const { WHATSAPP_NUMBER } = require('./config');
 
@@ -309,7 +299,7 @@ function page({ title = 'Tap2Review', body = '', nav = true }) {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>${title}</title>
-<style>${BASE_STYLES}</style>
+<link rel="stylesheet" href="/css/styles.css">
 </head>
 <body>
 ${nav ? `<div class="nav">
