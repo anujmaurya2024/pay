@@ -1,0 +1,683 @@
+{
+  "businesses": [
+    {
+      "id": "biz_1",
+      "name": "The Daily Bean",
+      "reviewUrl": "https://search.google.com/local/writereview?placeid=ChIJexample",
+      "ownerId": null,
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "biz___GnKYmd",
+      "name": "ravi",
+      "reviewUrl": "",
+      "ownerId": "cust_AE8NU2vNiU",
+      "createdAt": "2026-09-15T06:33:41.480Z"
+    },
+    {
+      "id": "biz_YgVoD-Xd",
+      "name": "Yash",
+      "reviewUrl": "http://google.com/",
+      "ownerId": null,
+      "createdAt": "2026-09-15T06:53:42.104Z"
+    },
+    {
+      "id": "biz_GaB5pFFD",
+      "name": "utshav",
+      "reviewUrl": "https://www.amazon.in/",
+      "ownerId": null,
+      "createdAt": "2026-09-16T14:07:14.724Z"
+    },
+    {
+      "id": "biz_LuLG4yWL",
+      "name": "gandu",
+      "reviewUrl": "",
+      "ownerId": "cust_rzVKZo4UYM",
+      "createdAt": "2026-09-16T14:20:00.474Z"
+    }
+  ],
+  "cards": [
+    {
+      "id": "card_1",
+      "publicCardId": "TR-DEMO01",
+      "businessId": "biz_1",
+      "customerId": null,
+      "orderId": null,
+      "businessName": null,
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": true,
+      "createdAt": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "card_Rg7uWSw_",
+      "publicCardId": "TR-Y42NBQ",
+      "businessId": "biz___GnKYmd",
+      "customerId": "cust_AE8NU2vNiU",
+      "orderId": "order_AD74qkFK",
+      "businessName": "ravi",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:33:41.486Z"
+    },
+    {
+      "id": "card_CEz8ML32",
+      "publicCardId": "TR-MQXKKW",
+      "businessId": "biz___GnKYmd",
+      "customerId": "cust_AE8NU2vNiU",
+      "orderId": "order_AD74qkFK",
+      "businessName": "ravi",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:33:41.491Z"
+    },
+    {
+      "id": "card_-V087srF",
+      "publicCardId": "TR-IZGJE0",
+      "businessId": "biz___GnKYmd",
+      "customerId": "cust_AE8NU2vNiU",
+      "orderId": "order_AD74qkFK",
+      "businessName": "ravi",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:33:41.496Z"
+    },
+    {
+      "id": "card_3UqY_Cm5",
+      "publicCardId": "TR-CCR3MY",
+      "businessId": "biz___GnKYmd",
+      "customerId": "cust_AE8NU2vNiU",
+      "orderId": "order_AD74qkFK",
+      "businessName": "ravi",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:33:41.502Z"
+    },
+    {
+      "id": "card_HUqzTJhp",
+      "publicCardId": "TR-XGUCCP",
+      "businessId": "biz___GnKYmd",
+      "customerId": "cust_AE8NU2vNiU",
+      "orderId": "order_AD74qkFK",
+      "businessName": "ravi",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:33:41.506Z"
+    },
+    {
+      "id": "card_qKwTc4uh",
+      "publicCardId": "TR-QFL4Z9",
+      "businessId": "biz___GnKYmd",
+      "customerId": "cust_AE8NU2vNiU",
+      "orderId": "order_AD74qkFK",
+      "businessName": "ravi",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:33:41.511Z"
+    },
+    {
+      "id": "card_7FV1Td08",
+      "publicCardId": "TR-QQKZEM",
+      "businessId": "biz___GnKYmd",
+      "customerId": "cust_AE8NU2vNiU",
+      "orderId": "order_AD74qkFK",
+      "businessName": "ravi",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:33:41.517Z"
+    },
+    {
+      "id": "card_4yy7GcQX",
+      "publicCardId": "TR-34JTNT",
+      "businessId": "biz___GnKYmd",
+      "customerId": "cust_AE8NU2vNiU",
+      "orderId": "order_AD74qkFK",
+      "businessName": "ravi",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:33:41.522Z"
+    },
+    {
+      "id": "card_Twu9kXep",
+      "publicCardId": "TR-AT29ML",
+      "businessId": "biz___GnKYmd",
+      "customerId": "cust_AE8NU2vNiU",
+      "orderId": "order_AD74qkFK",
+      "businessName": "ravi",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:33:41.527Z"
+    },
+    {
+      "id": "card_S1OLtK0m",
+      "publicCardId": "TR-XAI653",
+      "businessId": "biz___GnKYmd",
+      "customerId": "cust_AE8NU2vNiU",
+      "orderId": "order_AD74qkFK",
+      "businessName": "ravi",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:33:41.533Z"
+    },
+    {
+      "id": "card_JzoFUGE4",
+      "publicCardId": "TR-IOXYWJ",
+      "businessId": "biz_YgVoD-Xd",
+      "customerId": null,
+      "orderId": null,
+      "businessName": null,
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-15T06:53:48.945Z"
+    },
+    {
+      "id": "card_MacOTepD",
+      "publicCardId": "TR-CHK69O",
+      "businessId": "biz_GaB5pFFD",
+      "customerId": null,
+      "orderId": null,
+      "businessName": null,
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:07:20.795Z"
+    },
+    {
+      "id": "card_XLNQviUH",
+      "publicCardId": "TR-IQZWXS",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.479Z"
+    },
+    {
+      "id": "card_uk4nlPdm",
+      "publicCardId": "TR-RILXXU",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.484Z"
+    },
+    {
+      "id": "card_oeG7bL8b",
+      "publicCardId": "TR-IHCWCM",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.489Z"
+    },
+    {
+      "id": "card_VUS4nwRo",
+      "publicCardId": "TR-MFSFUN",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.494Z"
+    },
+    {
+      "id": "card__eNBcmJk",
+      "publicCardId": "TR-6RJOL5",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.501Z"
+    },
+    {
+      "id": "card_XBTpcHpG",
+      "publicCardId": "TR-NWQW3K",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.505Z"
+    },
+    {
+      "id": "card_pXvOddeP",
+      "publicCardId": "TR-EYSKBF",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.511Z"
+    },
+    {
+      "id": "card_AvcpGkSb",
+      "publicCardId": "TR-BKOHDD",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.517Z"
+    },
+    {
+      "id": "card_CAXlpIA8",
+      "publicCardId": "TR-MUXV7R",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.522Z"
+    },
+    {
+      "id": "card_hoUkQvDg",
+      "publicCardId": "TR-D1KN0M",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.529Z"
+    },
+    {
+      "id": "card_YHynBHqo",
+      "publicCardId": "TR-XH2WBI",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.534Z"
+    },
+    {
+      "id": "card_8HytcXkJ",
+      "publicCardId": "TR-DJEFXY",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.538Z"
+    },
+    {
+      "id": "card_PdAGxBIx",
+      "publicCardId": "TR-GXS7HV",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.545Z"
+    },
+    {
+      "id": "card_oWJwEf8R",
+      "publicCardId": "TR-ZNQMZ2",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.551Z"
+    },
+    {
+      "id": "card_qKnnhkLw",
+      "publicCardId": "TR-TBVMJR",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.556Z"
+    },
+    {
+      "id": "card_LfJj3fB1",
+      "publicCardId": "TR-HVU4PI",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.563Z"
+    },
+    {
+      "id": "card_wB-bClsI",
+      "publicCardId": "TR-6ZYEVX",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.568Z"
+    },
+    {
+      "id": "card_HXVSctHN",
+      "publicCardId": "TR-O0GRA0",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.574Z"
+    },
+    {
+      "id": "card_D9Nh8Q8E",
+      "publicCardId": "TR-EK4VWJ",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.580Z"
+    },
+    {
+      "id": "card_al-Awc-u",
+      "publicCardId": "TR-4OCOWI",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.586Z"
+    },
+    {
+      "id": "card_Xhv_Uc5t",
+      "publicCardId": "TR-ZXVKET",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.591Z"
+    },
+    {
+      "id": "card_UibvzyCp",
+      "publicCardId": "TR-TGJXJN",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.596Z"
+    },
+    {
+      "id": "card_8GsyPPKP",
+      "publicCardId": "TR-2C7YTP",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.602Z"
+    },
+    {
+      "id": "card_sUFSX7jZ",
+      "publicCardId": "TR-Q7IN6R",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.607Z"
+    },
+    {
+      "id": "card_nVgJNRo7",
+      "publicCardId": "TR-BIGCAT",
+      "businessId": "biz_LuLG4yWL",
+      "customerId": "cust_rzVKZo4UYM",
+      "orderId": "order_DvPIQ3_T",
+      "businessName": "gandu",
+      "status": "ACTIVE",
+      "destinationUrl": null,
+      "reviewSuggestions": {
+        "enabled": false
+      },
+      "primary": false,
+      "createdAt": "2026-09-16T14:20:00.612Z"
+    }
+  ],
+  "customers": [
+    {
+      "id": "cust_AE8NU2vNiU",
+      "name": "yash sharma",
+      "email": "sharmayash7878@gmail.com",
+      "passwordHash": "$2b$10$N4680DTl5iZHx22e3gv6te591DNi8wCC5cOFmrrFqpvxWPRAZcf32",
+      "createdAt": "2026-09-15T06:33:41.465Z"
+    },
+    {
+      "id": "cust_rzVKZo4UYM",
+      "name": "anuj",
+      "email": "tiwariyash7878@gmail.com",
+      "passwordHash": "$2b$10$/ulhilj/xBAaYiwZCw8f0e3s/buSvEmzWv46iFx9GDyvBE59b/.xm",
+      "createdAt": "2026-09-16T14:20:00.452Z"
+    }
+  ],
+  "orders": [
+    {
+      "id": "order_AD74qkFK",
+      "customerId": "cust_AE8NU2vNiU",
+      "quantity": 10,
+      "amount": 2500,
+      "plan": "10",
+      "paymentStatus": "PAID",
+      "paytmTxnId": "MANUAL-WHATSAPP-1789454021443",
+      "cardsGenerated": true,
+      "checkout": {
+        "name": "yash sharma",
+        "email": "sharmayash7878@gmail.com",
+        "businessName": "ravi",
+        "phone": "6367599609",
+        "passwordHash": "$2b$10$N4680DTl5iZHx22e3gv6te591DNi8wCC5cOFmrrFqpvxWPRAZcf32"
+      },
+      "createdAt": "2026-09-15T06:18:11.865Z"
+    },
+    {
+      "id": "order_DvPIQ3_T",
+      "customerId": "cust_rzVKZo4UYM",
+      "quantity": 25,
+      "amount": 5625,
+      "plan": "25",
+      "paymentStatus": "PAID",
+      "paytmTxnId": "MANUAL-WHATSAPP-1789568400431",
+      "cardsGenerated": true,
+      "checkout": {
+        "name": "anuj",
+        "email": "tiwariyash7878@gmail.com",
+        "businessName": "gandu",
+        "phone": "6367599609",
+        "passwordHash": "$2b$10$/ulhilj/xBAaYiwZCw8f0e3s/buSvEmzWv46iFx9GDyvBE59b/.xm"
+      },
+      "createdAt": "2026-09-16T14:19:00.572Z"
+    },
+    {
+      "id": "order_Q6vJhZyW",
+      "customerId": null,
+      "quantity": 10,
+      "amount": 2500,
+      "plan": "10",
+      "paymentStatus": "PENDING_PAYMENT",
+      "paytmTxnId": null,
+      "cardsGenerated": false,
+      "checkout": {
+        "name": "yash",
+        "email": "anjalimaurya028@gmail.com",
+        "businessName": "bakchodi",
+        "phone": "09305178105",
+        "passwordHash": "$2b$10$3O6ELUaYqIHC0gtzaRV8dOZcoAOIaue2UwzPUeQX8FYjQ5bD99oDG"
+      },
+      "createdAt": "2026-09-17T09:21:29.621Z"
+    }
+  ]
+}
