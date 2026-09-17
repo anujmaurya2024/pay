@@ -1,0 +1,16 @@
+﻿# Dependencies
+node_modules/
+
+# Environment secrets — NEVER commit this
+.env
+
+# Runtime database — preserved on Render via Persistent Disk
+data/db.json
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
