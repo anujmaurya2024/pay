@@ -1,134 +1,186 @@
-const fs = require('fs');
-const path = require('path');
+const mongoose = require('mongoose');
 const { nanoid } = require('nanoid');
 
-const DB_PATH = path.join(__dirname, 'data', 'db.json');
-
-function read() {
-  return JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'));
+// ─── Connect ────────────────────────────────────────────────────────────────
+// Called once from server.js before app.listen().
+async function connect() {
+  const uri = process.env.MONGODB_URI;
+  if (!uri) throw new Error('MONGODB_URI is not set in .env');
+  await mongoose.connect(uri);
+  console.log('✅ MongoDB connected');
 }
-function write(db) {
-  fs.writeFileSync(DB_PATH, JSON.stringify(db, null, 2));
-}
 
+// ─── Schemas ─────────────────────────────────────────────────────────────────
+// We keep the custom `id` string fields (e.g. "biz_xxx", "card_xxx") as the
+// logical application IDs. Mongoose's _id is unused for lookup — all queries
+// go through these string ids — so existing data migrates with zero ID changes.
+
+const businessSchema = new mongoose.Schema({
+  id:        { type: String, required: true, unique: true, index: true },
+  name:      { type: String, required: true },
+  reviewUrl: { type: String, default: '' },
+  ownerId:   { type: String, default: null },
+  createdAt: { type: String, default: () => new Date().toISOString() },
+}, { _id: true, versionKey: false });
+
+const cardSchema = new mongoose.Schema({
+  id:            { type: String, required: true, unique: true, index: true },
+  publicCardId:  { type: String, required: true, unique: true, index: true },
+  businessId:    { type: String, default: null },
+  customerId:    { type: String, default: null },
+  orderId:       { type: String, default: null },
+  businessName:  { type: String, default: null },
+  status:        { type: String, default: 'ACTIVE' },
+  destinationUrl:{ type: String, default: null },
+  reviewSuggestions: {
+    enabled: { type: Boolean, default: false },
+    prompts:  { type: [String], default: undefined },
+  },
+  primary:   { type: Boolean, default: false },
+  createdAt: { type: String, default: () => new Date().toISOString() },
+}, { _id: true, versionKey: false });
+
+const customerSchema = new mongoose.Schema({
+  id:           { type: String, required: true, unique: true, index: true },
+  name:         { type: String, required: true },
+  email:        { type: String, required: true, unique: true, index: true },
+  passwordHash: { type: String, required: true },
+  createdAt:    { type: String, default: () => new Date().toISOString() },
+}, { _id: true, versionKey: false });
+
+const orderSchema = new mongoose.Schema({
+  id:            { type: String, required: true, unique: true, index: true },
+  customerId:    { type: String, default: null },
+  quantity:      { type: Number, required: true },
+  amount:        { type: Number, required: true },
+  plan:          { type: String, required: true },
+  paymentStatus: { type: String, default: 'PAID' },
+  paytmTxnId:    { type: String, default: null },
+  cardsGenerated:{ type: Boolean, default: false },
+  checkout:      { type: mongoose.Schema.Types.Mixed, default: null },
+  createdAt:     { type: String, default: () => new Date().toISOString() },
+}, { _id: true, versionKey: false });
+
+// Guard against model re-registration (e.g. during hot-reload)
+const Business = mongoose.models.Business || mongoose.model('Business', businessSchema);
+const Card     = mongoose.models.Card     || mongoose.model('Card',     cardSchema);
+const Customer = mongoose.models.Customer || mongoose.model('Customer', customerSchema);
+const Order    = mongoose.models.Order    || mongoose.model('Order',    orderSchema);
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 function genCardId() {
   return 'TR-' + nanoid(6).toUpperCase().replace(/[^A-Z0-9]/g, 'X');
 }
 
-function getBusinesses() {
-  return read().businesses;
+// Lean documents (plain JS objects) are returned everywhere so callers
+// can access properties directly — no .toObject() needed downstream.
+
+// ─── BUSINESSES ──────────────────────────────────────────────────────────────
+async function getBusinesses() {
+  return Business.find().lean();
 }
-function getBusiness(id) {
-  return read().businesses.find(b => b.id === id);
+async function getBusiness(id) {
+  if (!id) return null;
+  return Business.findOne({ id }).lean();
 }
-function createBusiness({ name, reviewUrl, ownerId }) {
-  const db = read();
-  const biz = {
+async function createBusiness({ name, reviewUrl, ownerId }) {
+  const biz = await Business.create({
     id: 'biz_' + nanoid(8),
     name,
-    reviewUrl,
-    ownerId: ownerId || null, // null = legacy/admin-owned business (backward compatible)
+    reviewUrl: reviewUrl || '',
+    ownerId: ownerId || null,
     createdAt: new Date().toISOString(),
-  };
-  db.businesses.push(biz);
-  write(db);
-  return biz;
+  });
+  return biz.toObject();
 }
-function getBusinessesByOwner(ownerId) {
-  return read().businesses.filter(b => b.ownerId === ownerId);
+async function getBusinessesByOwner(ownerId) {
+  return Business.find({ ownerId }).lean();
 }
-function updateBusinessProfile(id, { name }) {
-  const db = read();
-  const biz = db.businesses.find(b => b.id === id);
-  if (!biz) return null;
-  if (name) biz.name = name;
-  write(db);
+async function updateBusinessProfile(id, { name }) {
+  const biz = await Business.findOneAndUpdate(
+    { id },
+    { ...(name ? { name } : {}) },
+    { new: true }
+  ).lean();
   return biz;
 }
 
-function getCards() {
-  return read().cards;
+// ─── CARDS ───────────────────────────────────────────────────────────────────
+async function getCards() {
+  return Card.find().lean();
 }
-function getCardByPublicId(publicCardId) {
-  return read().cards.find(c => c.publicCardId === publicCardId);
+async function getCardByPublicId(publicCardId) {
+  return Card.findOne({ publicCardId }).lean();
 }
-function createCard({ businessId, customerId, orderId, businessName, destinationUrl }) {
-  const db = read();
+async function createCard({ businessId, customerId, orderId, businessName, destinationUrl }) {
+  // Ensure publicCardId is unique
   let publicCardId;
   do {
     publicCardId = genCardId();
-  } while (db.cards.some(c => c.publicCardId === publicCardId));
-  const isFirstCard = db.cards.length === 0;
-  const card = {
+  } while (await Card.exists({ publicCardId }));
+
+  const isFirstCard = (await Card.countDocuments()) === 0;
+  const card = await Card.create({
     id: 'card_' + nanoid(8),
     publicCardId,
     businessId: businessId || null,
-    customerId: customerId || null, // null = legacy/admin-created card (backward compatible)
+    customerId: customerId || null,
     orderId: orderId || null,
-    businessName: businessName || null, // per-card business name override (new — independent per card)
+    businessName: businessName || null,
     status: 'ACTIVE',
     destinationUrl: destinationUrl || null,
     reviewSuggestions: { enabled: false },
-    primary: isFirstCard, // first card ever created becomes the homepage/primary card by default
+    primary: isFirstCard,
     createdAt: new Date().toISOString(),
-  };
-  db.cards.push(card);
-  write(db);
-  return card;
+  });
+  return card.toObject();
 }
-function setCardBusinessName(publicCardId, businessName) {
-  const db = read();
-  const card = db.cards.find(c => c.publicCardId === publicCardId);
-  if (!card) return null;
-  card.businessName = businessName || null;
-  write(db);
-  return card;
+async function setCardBusinessName(publicCardId, businessName) {
+  return Card.findOneAndUpdate(
+    { publicCardId },
+    { businessName: businessName || null },
+    { new: true }
+  ).lean();
 }
-function setCardDetails(publicCardId, { businessName, destinationUrl }) {
-  const db = read();
-  const card = db.cards.find(c => c.publicCardId === publicCardId);
-  if (!card) return null;
-  if (businessName !== undefined) card.businessName = businessName || null;
-  if (destinationUrl !== undefined) card.destinationUrl = destinationUrl || null;
-  write(db);
-  return card;
+async function setCardDetails(publicCardId, { businessName, destinationUrl }) {
+  const update = {};
+  if (businessName !== undefined) update.businessName = businessName || null;
+  if (destinationUrl !== undefined) update.destinationUrl = destinationUrl || null;
+  return Card.findOneAndUpdate({ publicCardId }, update, { new: true }).lean();
 }
 // Resolves the display name for a card: per-card override first, then linked
-// business name, then a safe fallback. Existing cards created before this
-// field existed simply have businessName === undefined/null and fall back
-// cleanly to their business — no migration needed, nothing breaks.
-function resolveCardBusinessName(card) {
+// business name, then a safe fallback.
+async function resolveCardBusinessName(card) {
   if (card.businessName) return card.businessName;
-  const biz = getBusiness(card.businessId);
+  const biz = await getBusiness(card.businessId);
   return biz ? biz.name : 'Your Business';
 }
-function getCardsByCustomer(customerId) {
-  return read().cards.filter(c => c.customerId === customerId);
+async function getCardsByCustomer(customerId) {
+  return Card.find({ customerId }).lean();
 }
-function setCardBusiness(publicCardId, businessId) {
-  const db = read();
-  const card = db.cards.find(c => c.publicCardId === publicCardId);
-  if (!card) return null;
-  card.businessId = businessId;
-  write(db);
-  return card;
+async function setCardBusiness(publicCardId, businessId) {
+  return Card.findOneAndUpdate({ publicCardId }, { businessId }, { new: true }).lean();
 }
-function setCardReviewSuggestions(publicCardId, enabled) {
-  const db = read();
-  const card = db.cards.find(c => c.publicCardId === publicCardId);
+async function setCardReviewSuggestions(publicCardId, enabled) {
+  // Preserve any custom prompts already set.
+  const card = await Card.findOne({ publicCardId }).lean();
   if (!card) return null;
-  // Preserve any custom prompts already set — toggling on/off must not wipe them.
-  card.reviewSuggestions = { ...(card.reviewSuggestions || {}), enabled: !!enabled };
-  write(db);
-  return card;
+  const existing = card.reviewSuggestions || {};
+  return Card.findOneAndUpdate(
+    { publicCardId },
+    { reviewSuggestions: { ...existing, enabled: !!enabled } },
+    { new: true }
+  ).lean();
 }
-function setCardReviewPrompts(publicCardId, prompts) {
-  const db = read();
-  const card = db.cards.find(c => c.publicCardId === publicCardId);
+async function setCardReviewPrompts(publicCardId, prompts) {
+  const card = await Card.findOne({ publicCardId }).lean();
   if (!card) return null;
-  card.reviewSuggestions = { ...(card.reviewSuggestions || {}), prompts };
-  write(db);
-  return card;
+  const existing = card.reviewSuggestions || {};
+  return Card.findOneAndUpdate(
+    { publicCardId },
+    { reviewSuggestions: { ...existing, prompts } },
+    { new: true }
+  ).lean();
 }
 const DEFAULT_REVIEW_PROMPTS = [
   'Amazing service! Highly recommend.',
@@ -138,51 +190,42 @@ const DEFAULT_REVIEW_PROMPTS = [
   'Loved it — five stars!',
 ];
 // Returns this card's own custom prompts if it has exactly 5 valid ones,
-// otherwise falls back to the universal defaults — nothing breaks for
-// existing/legacy cards that predate this feature.
+// otherwise falls back to the universal defaults.
 function getCardReviewPrompts(card) {
   const prompts = card.reviewSuggestions && Array.isArray(card.reviewSuggestions.prompts)
     ? card.reviewSuggestions.prompts.filter(p => typeof p === 'string' && p.trim())
     : [];
   return prompts.length === 5 ? prompts : DEFAULT_REVIEW_PROMPTS;
 }
-function setPrimaryCard(publicCardId) {
-  const db = read();
-  const target = db.cards.find(c => c.publicCardId === publicCardId);
+async function setPrimaryCard(publicCardId) {
+  const target = await Card.findOne({ publicCardId }).lean();
   if (!target) return null;
-  db.cards.forEach(c => { c.primary = false; });
-  target.primary = true;
-  write(db);
-  return target;
+  // Clear primary on all cards, then set on the target
+  await Card.updateMany({}, { primary: false });
+  return Card.findOneAndUpdate({ publicCardId }, { primary: true }, { new: true }).lean();
 }
-function getPrimaryCard() {
-  const db = read();
-  let primary = db.cards.find(c => c.primary === true && c.status === 'ACTIVE');
+async function getPrimaryCard() {
+  let primary = await Card.findOne({ primary: true, status: 'ACTIVE' }).lean();
   if (primary) return primary;
-  primary = db.cards.find(c => c.status === 'ACTIVE');
+  primary = await Card.findOne({ status: 'ACTIVE' }).lean();
   if (primary) return primary;
-  return db.cards[0] || null;
+  return Card.findOne().lean();
 }
-function setCardStatus(publicCardId, status) {
-  const db = read();
-  const card = db.cards.find(c => c.publicCardId === publicCardId);
-  if (!card) return null;
-  card.status = status;
-  write(db);
-  return card;
+async function setCardStatus(publicCardId, status) {
+  return Card.findOneAndUpdate({ publicCardId }, { status }, { new: true }).lean();
 }
-function setCardDestination(publicCardId, destinationUrl) {
-  const db = read();
-  const card = db.cards.find(c => c.publicCardId === publicCardId);
-  if (!card) return null;
-  card.destinationUrl = destinationUrl || null;
-  write(db);
-  return card;
+async function setCardDestination(publicCardId, destinationUrl) {
+  return Card.findOneAndUpdate(
+    { publicCardId },
+    { destinationUrl: destinationUrl || null },
+    { new: true }
+  ).lean();
 }
 
-function resolveDestination(card) {
+// ─── Destination helpers ─────────────────────────────────────────────────────
+async function resolveDestination(card) {
   if (card.destinationUrl) return card.destinationUrl;
-  const biz = getBusiness(card.businessId);
+  const biz = await getBusiness(card.businessId);
   return biz ? biz.reviewUrl : null;
 }
 function isGoogleReviewDestination(url) {
@@ -190,93 +233,82 @@ function isGoogleReviewDestination(url) {
   return /google\.com|g\.page|goo\.gl\/maps/i.test(url);
 }
 
-// ---------------- CUSTOMERS ----------------
-function getCustomerByEmail(email) {
-  return read().customers.find(c => c.email.toLowerCase() === String(email).toLowerCase());
+// ─── CUSTOMERS ───────────────────────────────────────────────────────────────
+async function getCustomerByEmail(email) {
+  return Customer.findOne({ email: { $regex: new RegExp(`^${String(email).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } }).lean();
 }
-function getCustomerById(id) {
-  return read().customers.find(c => c.id === id);
+async function getCustomerById(id) {
+  if (!id) return null;
+  return Customer.findOne({ id }).lean();
 }
-function createCustomer({ name, email, passwordHash }) {
-  const db = read();
-  const customer = {
+async function createCustomer({ name, email, passwordHash }) {
+  const customer = await Customer.create({
     id: 'cust_' + nanoid(10),
     name,
     email,
     passwordHash,
     createdAt: new Date().toISOString(),
-  };
-  db.customers.push(customer);
-  write(db);
-  return customer;
+  });
+  return customer.toObject();
+}
+async function getCustomers() {
+  return Customer.find().lean();
 }
 
-// ---------------- ORDERS ----------------
-// createOrder now supports a PENDING state for real payment gateways: the
+// ─── ORDERS ──────────────────────────────────────────────────────────────────
+// createOrder supports a PENDING state for real payment gateways: the
 // order is created BEFORE payment, cards are only generated after
-// markOrderPaid() confirms verified payment (idempotent — see below).
-function createOrder({ customerId, quantity, amount, plan, paymentStatus, checkout }) {
-  const db = read();
-  const order = {
+// markOrderPaid() confirms verified payment (idempotent).
+async function createOrder({ customerId, quantity, amount, plan, paymentStatus, checkout }) {
+  const order = await Order.create({
     id: 'order_' + nanoid(8),
     customerId: customerId || null,
     quantity,
     amount,
     plan,
-    paymentStatus: paymentStatus || 'PAID', // 'PENDING' | 'PAID' | 'FAILED'
+    paymentStatus: paymentStatus || 'PAID',
     paytmTxnId: null,
     cardsGenerated: false,
-    // Checkout details captured before payment, used to create the account
-    // only once payment is verified. Password is stored already-hashed.
     checkout: checkout || null,
     createdAt: new Date().toISOString(),
-  };
-  db.orders.push(order);
-  write(db);
-  return order;
+  });
+  return order.toObject();
 }
-function getOrderById(id) {
-  return read().orders.find(o => o.id === id);
+async function getOrderById(id) {
+  return Order.findOne({ id }).lean();
 }
 // Idempotent: if this order was already marked PAID (e.g. Paytm retries the
 // callback/webhook), do nothing and just return the existing order untouched.
-function markOrderPaid(orderId, paytmTxnId) {
-  const db = read();
-  const order = db.orders.find(o => o.id === orderId);
+async function markOrderPaid(orderId, paytmTxnId) {
+  const order = await Order.findOne({ id: orderId }).lean();
   if (!order) return null;
   if (order.paymentStatus === 'PAID') return order; // already processed — idempotent no-op
-  order.paymentStatus = 'PAID';
-  order.paytmTxnId = paytmTxnId || null;
-  write(db);
-  return order;
+  return Order.findOneAndUpdate(
+    { id: orderId },
+    { paymentStatus: 'PAID', paytmTxnId: paytmTxnId || null },
+    { new: true }
+  ).lean();
 }
-function markOrderFailed(orderId) {
-  const db = read();
-  const order = db.orders.find(o => o.id === orderId);
+async function markOrderFailed(orderId) {
+  const order = await Order.findOne({ id: orderId }).lean();
   if (!order || order.paymentStatus === 'PAID') return order || null; // never downgrade a paid order
-  order.paymentStatus = 'FAILED';
-  write(db);
-  return order;
+  return Order.findOneAndUpdate({ id: orderId }, { paymentStatus: 'FAILED' }, { new: true }).lean();
 }
-function markOrderCardsGenerated(orderId) {
-  const db = read();
-  const order = db.orders.find(o => o.id === orderId);
-  if (!order) return null;
-  order.cardsGenerated = true;
-  write(db);
-  return order;
+async function markOrderCardsGenerated(orderId) {
+  return Order.findOneAndUpdate({ id: orderId }, { cardsGenerated: true }, { new: true }).lean();
 }
-function getOrders() {
-  return read().orders;
+async function setOrderCustomerId(orderId, customerId) {
+  return Order.findOneAndUpdate({ id: orderId }, { customerId }, { new: true }).lean();
 }
-function getOrdersByCustomer(customerId) {
-  return read().orders.filter(o => o.customerId === customerId);
+async function getOrders() {
+  return Order.find().lean();
 }
-function getCustomers() {
-  return read().customers;
+async function getOrdersByCustomer(customerId) {
+  return Order.find({ customerId }).lean();
 }
 
 module.exports = {
+  connect,
   getBusinesses, getBusiness, createBusiness, updateBusinessProfile, getBusinessesByOwner,
   getCards, getCardByPublicId, createCard, setCardStatus, setCardDestination,
   setPrimaryCard, getPrimaryCard, getCardsByCustomer, setCardBusiness, setCardReviewSuggestions,
@@ -285,5 +317,5 @@ module.exports = {
   resolveDestination, isGoogleReviewDestination,
   getCustomerByEmail, getCustomerById, createCustomer, getCustomers,
   createOrder, getOrders, getOrdersByCustomer, getOrderById,
-  markOrderPaid, markOrderFailed, markOrderCardsGenerated,
+  markOrderPaid, markOrderFailed, markOrderCardsGenerated, setOrderCustomerId,
 };

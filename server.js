@@ -51,17 +51,18 @@ function isValidHttpUrl(str) {
 }
 
 // ================= PUBLIC LANDING PAGE =================
-app.get('/', (req, res) => {
-  const primaryCard = db.getPrimaryCard();
-  const isDemoSeed = primaryCard && primaryCard.id === 'card_1'; // original seed card only — real cards never match this
-  const primaryBiz = primaryCard ? db.getBusiness(primaryCard.businessId) : null;
-  const bizName = primaryBiz ? primaryBiz.name : 'Your Business';
-  const bizLogo = primaryBiz ? (primaryBiz.logo || '⭐') : '⭐';
-  const cardId = primaryCard ? primaryCard.publicCardId : null;
-  const demoHref = cardId ? `/card/${cardId}` : '/admin';
-  const qrSrc = cardId ? `/api/qr/${cardId}` : null;
+app.get('/', async (req, res) => {
+  try {
+    const primaryCard = await db.getPrimaryCard();
+    const isDemoSeed = primaryCard && primaryCard.id === 'card_1'; // original seed card only — real cards never match this
+    const primaryBiz = primaryCard ? await db.getBusiness(primaryCard.businessId) : null;
+    const bizName = primaryBiz ? primaryBiz.name : 'Your Business';
+    const bizLogo = primaryBiz ? (primaryBiz.logo || '⭐') : '⭐';
+    const cardId = primaryCard ? primaryCard.publicCardId : null;
+    const demoHref = cardId ? `/card/${cardId}` : '/admin';
+    const qrSrc = cardId ? `/api/qr/${cardId}` : null;
 
-  const body = `
+    const body = `
   <div class="hero">
     <div class="eyebrow">${isDemoSeed ? '✨ Demo card shown below — manage your own in Admin' : '✨ Now taking early access'}</div>
     <h1>Get More Reviews<br/>With One Tap.</h1>
@@ -157,7 +158,11 @@ app.get('/', (req, res) => {
     © 2026 Tap2Review. All rights reserved.
   </footer>
   `;
-  res.send(page({ title: 'Tap2Review — Turn Every Happy Customer Into a Review', body }));
+    res.send(page({ title: 'Tap2Review — Turn Every Happy Customer Into a Review', body }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
+  }
 });
 
 // ================= HOW IT WORKS =================
@@ -272,7 +277,7 @@ app.get('/login', (req, res) => {
 
 app.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  const customer = db.getCustomerByEmail(email || '');
+  const customer = await db.getCustomerByEmail(email || '');
   if (!customer || !(await verifyPassword(password || '', customer.passwordHash))) {
     return res.redirect('/login?error=' + encodeURIComponent('Invalid email or password.'));
   }
@@ -333,31 +338,31 @@ app.get('/checkout', (req, res) => {
 // Idempotent via order.cardsGenerated — safe to call more than once
 // (e.g. if Admin double-clicks "Confirm Payment" on the same order).
 async function fulfillPaidOrder(order) {
-  if (order.cardsGenerated) return { customer: db.getCustomerById(order.customerId), cards: db.getCardsByCustomer(order.customerId).filter(c => c.orderId === order.id) };
+  if (order.cardsGenerated) {
+    return {
+      customer: await db.getCustomerById(order.customerId),
+      cards: (await db.getCardsByCustomer(order.customerId)).filter(c => c.orderId === order.id),
+    };
+  }
   const { name, email, businessName, passwordHash } = order.checkout;
 
-  let customer = db.getCustomerByEmail(email);
+  let customer = await db.getCustomerByEmail(email);
   if (!customer) {
-    customer = db.createCustomer({ name, email, passwordHash });
+    customer = await db.createCustomer({ name, email, passwordHash });
   }
   if (!order.customerId) {
-    // Attach the now-known customer to this order record.
-    const raw = require('fs').readFileSync(require('path').join(__dirname, 'data', 'db.json'), 'utf-8');
-    const parsed = JSON.parse(raw);
-    const o = parsed.orders.find(x => x.id === order.id);
-    if (o) o.customerId = customer.id;
-    require('fs').writeFileSync(require('path').join(__dirname, 'data', 'db.json'), JSON.stringify(parsed, null, 2));
+    await db.setOrderCustomerId(order.id, customer.id);
   }
 
-  let business = db.getBusinessesByOwner(customer.id)[0];
+  let business = (await db.getBusinessesByOwner(customer.id))[0];
   if (!business) {
-    business = db.createBusiness({ name: businessName, reviewUrl: '', ownerId: customer.id });
+    business = await db.createBusiness({ name: businessName, reviewUrl: '', ownerId: customer.id });
   }
   const newCards = [];
   for (let i = 0; i < order.quantity; i++) {
-    newCards.push(db.createCard({ businessId: business.id, customerId: customer.id, orderId: order.id, businessName }));
+    newCards.push(await db.createCard({ businessId: business.id, customerId: customer.id, orderId: order.id, businessName }));
   }
-  db.markOrderCardsGenerated(order.id);
+  await db.markOrderCardsGenerated(order.id);
   return { customer, cards: newCards };
 }
 
@@ -373,7 +378,7 @@ app.post('/api/purchase-request', async (req, res) => {
   }
 
   const passwordHash = await hashPassword(password);
-  const order = db.createOrder({
+  const order = await db.createOrder({
     quantity: planDef.quantity,
     amount: planDef.amount,
     plan,
@@ -420,7 +425,7 @@ app.post('/api/checkout-paytm', async (req, res) => {
   }
 
   const passwordHash = await hashPassword(password);
-  const order = db.createOrder({
+  const order = await db.createOrder({
     quantity: planDef.quantity,
     amount: planDef.amount,
     plan,
@@ -431,11 +436,11 @@ app.post('/api/checkout-paytm', async (req, res) => {
   if (!paytm.isConfigured) {
     const result = await payments.verifyPayment({ planKey: plan, customerEmail: email });
     if (!result.verified) {
-      db.markOrderFailed(order.id);
+      await db.markOrderFailed(order.id);
       return res.status(402).send('Payment could not be verified. <a href="/pricing">Try again</a>.');
     }
-    db.markOrderPaid(order.id, result.reference);
-    const { customer } = await fulfillPaidOrder(db.getOrderById(order.id));
+    await db.markOrderPaid(order.id, result.reference);
+    const { customer } = await fulfillPaidOrder(await db.getOrderById(order.id));
     req.session.customerId = customer.id;
     return res.send(page({
       title: 'Payment Successful — Tap2Review',
@@ -467,7 +472,7 @@ app.post('/api/checkout-paytm', async (req, res) => {
     </div>`;
     res.send(page({ title: 'Redirecting to Paytm…', body }));
   } catch (err) {
-    db.markOrderFailed(order.id);
+    await db.markOrderFailed(order.id);
     res.status(502).send('Could not start Paytm payment. <a href="/pricing">Try again</a>. (' + escapeHtml(err.message) + ')');
   }
 });
@@ -476,7 +481,7 @@ app.post('/api/payment/callback', async (req, res) => {
   if (!PAYTM_CHECKOUT_ENABLED) return res.status(404).send('Paytm checkout is currently disabled.');
   const body = req.body;
   const orderId = body.ORDERID;
-  const order = orderId && db.getOrderById(orderId);
+  const order = orderId && await db.getOrderById(orderId);
   if (!order) return res.status(404).send('Unknown order.');
 
   if (order.paymentStatus === 'PAID') {
@@ -485,7 +490,7 @@ app.post('/api/payment/callback', async (req, res) => {
 
   const checksumValid = await paytm.verifyCallbackChecksum(body).catch(() => false);
   if (!checksumValid) {
-    db.markOrderFailed(order.id);
+    await db.markOrderFailed(order.id);
     return res.status(400).send('Checksum verification failed. Payment not trusted.');
   }
 
@@ -498,21 +503,21 @@ app.post('/api/payment/callback', async (req, res) => {
 
   const resultStatus = statusResp && statusResp.body && statusResp.body.resultInfo && statusResp.body.resultInfo.resultStatus;
   if (resultStatus !== 'TXN_SUCCESS') {
-    db.markOrderFailed(order.id);
+    await db.markOrderFailed(order.id);
     return res.redirect('/checkout/failed?order=' + encodeURIComponent(order.id));
   }
 
   const txnId = statusResp.body.txnId || null;
-  db.markOrderPaid(order.id, txnId);
-  await fulfillPaidOrder(db.getOrderById(order.id));
+  await db.markOrderPaid(order.id, txnId);
+  await fulfillPaidOrder(await db.getOrderById(order.id));
   res.redirect('/checkout/success?order=' + encodeURIComponent(order.id));
 });
 
 app.get('/checkout/success', async (req, res) => {
   if (!PAYTM_CHECKOUT_ENABLED) return res.redirect('/pricing');
-  const order = db.getOrderById(req.query.order);
+  const order = await db.getOrderById(req.query.order);
   if (!order || order.paymentStatus !== 'PAID') return res.redirect('/pricing');
-  const customer = db.getCustomerById(order.customerId);
+  const customer = await db.getCustomerById(order.customerId);
   if (customer) req.session.customerId = customer.id;
   const body = `<div class="hero" style="padding-top:90px; text-align:center;">
     <div class="eyebrow">✅ Payment Successful</div>
@@ -537,15 +542,16 @@ app.get('/checkout/failed', (req, res) => {
 
 
 // ================= CUSTOMER DASHBOARD =================
-app.get('/dashboard', requireCustomerAuth, (req, res) => {
-  const customer = db.getCustomerById(req.session.customerId);
-  const myCards = db.getCardsByCustomer(customer.id);
+app.get('/dashboard', requireCustomerAuth, async (req, res) => {
+  try {
+    const customer = await db.getCustomerById(req.session.customerId);
+    const myCards = await db.getCardsByCustomer(customer.id);
 
-  const cardRows = myCards.map(c => {
-    const redirectUrl = `${BASE_URL}/r/${c.publicCardId}`;
-    const dest = db.resolveDestination(c);
-    const bizName = db.resolveCardBusinessName(c);
-    return `<tr>
+    const cardRows = await Promise.all(myCards.map(async c => {
+      const redirectUrl = `${BASE_URL}/r/${c.publicCardId}`;
+      const dest = await db.resolveDestination(c);
+      const bizName = await db.resolveCardBusinessName(c);
+      return `<tr>
       <td><code>${c.publicCardId}</code></td>
       <td>${escapeHtml(bizName)}</td>
       <td><span class="badge ${c.status === 'ACTIVE' ? 'active' : 'inactive'}">${c.status}</span></td>
@@ -559,9 +565,9 @@ app.get('/dashboard', requireCustomerAuth, (req, res) => {
         </div>
       </td>
     </tr>`;
-  }).join('');
+    }));
 
-  const body = `
+    const body = `
   <div class="container" style="padding:40px 24px 90px;">
     <div class="flex-between">
       <h1 style="letter-spacing:.5px;">My Dashboard</h1>
@@ -586,7 +592,7 @@ app.get('/dashboard', requireCustomerAuth, (req, res) => {
       <p style="color:var(--gray); font-size:13px; margin-top:-6px;">Review Suggestions (if enabled) are managed by Tap2Review admin and cannot be changed here.</p>
       <table>
         <thead><tr><th>Card ID</th><th>Business Name</th><th>Status</th><th>Destination</th><th>Actions</th></tr></thead>
-        <tbody>${cardRows || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}</tbody>
+        <tbody>${cardRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}</tbody>
       </table>
     </div>
   </div>
@@ -609,12 +615,16 @@ app.get('/dashboard', requireCustomerAuth, (req, res) => {
   <script src="/js/dashboard.js"></script>
   <style>.prompt-field{display:block; width:100%; margin-bottom:8px;}</style>
   `;
-  res.send(page({ title: 'Dashboard — Tap2Review', body }));
+    res.send(page({ title: 'Dashboard — Tap2Review', body }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
+  }
 });
 
 // Ownership check used by every dashboard card API below.
-function ownedCardOr403(req, res) {
-  const card = db.getCardByPublicId(req.params.cardId);
+async function ownedCardOr403(req, res) {
+  const card = await db.getCardByPublicId(req.params.cardId);
   if (!card || card.customerId !== req.session.customerId) {
     res.status(403).json({ error: 'Not authorized for this card' });
     return null;
@@ -623,25 +633,25 @@ function ownedCardOr403(req, res) {
 }
 
 // Edit a SINGLE card's business name + destination — never touches sibling cards.
-app.post('/dashboard/api/card/:cardId/details', requireCustomerAuth, (req, res) => {
-  const card = ownedCardOr403(req, res);
+app.post('/dashboard/api/card/:cardId/details', requireCustomerAuth, async (req, res) => {
+  const card = await ownedCardOr403(req, res);
   if (!card) return;
   const { businessName, destinationUrl } = req.body;
   if (!businessName || !destinationUrl || !isValidHttpUrl(destinationUrl)) {
     return res.status(400).json({ error: 'Invalid input' });
   }
-  res.json(db.setCardDetails(card.publicCardId, { businessName, destinationUrl }));
+  res.json(await db.setCardDetails(card.publicCardId, { businessName, destinationUrl }));
 });
 
 // Optional convenience: apply the same business name + destination to every
 // card this customer owns. Each card remains independently editable afterward.
-app.post('/dashboard/api/apply-to-all', requireCustomerAuth, (req, res) => {
+app.post('/dashboard/api/apply-to-all', requireCustomerAuth, async (req, res) => {
   const { businessName, destinationUrl } = req.body;
   if (!businessName || !destinationUrl || !isValidHttpUrl(destinationUrl)) {
     return res.status(400).json({ error: 'Invalid input' });
   }
-  const myCards = db.getCardsByCustomer(req.session.customerId);
-  myCards.forEach(c => db.setCardDetails(c.publicCardId, { businessName, destinationUrl }));
+  const myCards = await db.getCardsByCustomer(req.session.customerId);
+  await Promise.all(myCards.map(c => db.setCardDetails(c.publicCardId, { businessName, destinationUrl })));
   res.json({ updated: myCards.length });
 });
 
@@ -651,30 +661,31 @@ app.post('/dashboard/api/apply-to-all', requireCustomerAuth, (req, res) => {
 // their own cards, even by calling an API directly. requireAuth (admin Basic Auth) is
 // a completely separate credential from requireCustomerAuth (session-based).
 
-app.post('/dashboard/api/card/:cardId/status', requireCustomerAuth, (req, res) => {
-  const card = ownedCardOr403(req, res);
+app.post('/dashboard/api/card/:cardId/status', requireCustomerAuth, async (req, res) => {
+  const card = await ownedCardOr403(req, res);
   if (!card) return;
   const { status } = req.body;
   if (!['ACTIVE', 'INACTIVE'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
-  res.json(db.setCardStatus(card.publicCardId, status));
+  res.json(await db.setCardStatus(card.publicCardId, status));
 });
 
 // ================= DIGITAL CARD =================
-app.get('/card/:cardId', (req, res) => {
+app.get('/card/:cardId', async (req, res) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   const cardId = req.params.cardId;
-  const card = db.getCardByPublicId(cardId); // fresh read from db.json, every request
-  if (!card) return renderNotFound(res, `No card found for ID "${cardId}".`);
+  try {
+    const card = await db.getCardByPublicId(cardId);
+    if (!card) return renderNotFound(res, `No card found for ID "${cardId}".`);
 
-  const isActive = card.status === 'ACTIVE';
-  const destination = db.resolveDestination(card);
-  const bizName = db.resolveCardBusinessName(card);
-  const qrTs = Date.now(); // cache-bust so QR always reflects latest destination on refresh
+    const isActive = card.status === 'ACTIVE';
+    const destination = await db.resolveDestination(card);
+    const bizName = await db.resolveCardBusinessName(card);
+    const qrTs = Date.now(); // cache-bust so QR always reflects latest destination on refresh
 
-  // The physical card itself is universal and destination-neutral — no business
-  // name, logo, or destination type is ever printed on it. Only the QR/NFC
-  // permanent redirect URL is unique per card.
-  const body = `
+    // The physical card itself is universal and destination-neutral — no business
+    // name, logo, or destination type is ever printed on it. Only the QR/NFC
+    // permanent redirect URL is unique per card.
+    const body = `
   <div class="hero" style="padding-top:60px; padding-bottom:60px;">
     <div class="eyebrow">Digital Card Preview</div>
 
@@ -742,7 +753,11 @@ app.get('/card/:cardId', (req, res) => {
     }
   </script>
   `;
-  res.send(page({ title: `${bizName} — Tap2Review`, body }));
+    res.send(page({ title: `${bizName} — Tap2Review`, body }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
+  }
 });
 
 // ================= QR CODE API =================
@@ -777,26 +792,31 @@ app.get('/api/qr/:cardId', async (req, res) => {
 });
 
 // ================= CORE REDIRECT =================
-app.get('/r/:cardId', (req, res) => {
+app.get('/r/:cardId', async (req, res) => {
   const cardId = req.params.cardId;
 
   if (!CARD_ID_RE.test(cardId)) return renderNotFound(res);
 
-  const card = db.getCardByPublicId(cardId);
-  if (!card) return renderNotFound(res);
-  if (card.status !== 'ACTIVE') return renderInactive(res);
+  try {
+    const card = await db.getCardByPublicId(cardId);
+    if (!card) return renderNotFound(res);
+    if (card.status !== 'ACTIVE') return renderInactive(res);
 
-  const destination = db.resolveDestination(card);
-  if (!destination || !isValidHttpUrl(destination)) return renderNotFound(res, 'This card is not configured yet.');
+    const destination = await db.resolveDestination(card);
+    if (!destination || !isValidHttpUrl(destination)) return renderNotFound(res, 'This card is not configured yet.');
 
-  // Review Suggestions is OPTIONAL, admin-controlled, and only applies to Google Review destinations.
-  // Every other destination (Instagram, WhatsApp, website, etc.) redirects directly — no interstitial, ever.
-  const suggestionsOn = card.reviewSuggestions && card.reviewSuggestions.enabled;
-  if (suggestionsOn && db.isGoogleReviewDestination(destination)) {
-    return renderReviewSuggestions(res, card, destination);
+    // Review Suggestions is OPTIONAL, admin-controlled, and only applies to Google Review destinations.
+    // Every other destination (Instagram, WhatsApp, website, etc.) redirects directly — no interstitial, ever.
+    const suggestionsOn = card.reviewSuggestions && card.reviewSuggestions.enabled;
+    if (suggestionsOn && db.isGoogleReviewDestination(destination)) {
+      return renderReviewSuggestions(res, card, destination);
+    }
+
+    return res.redirect(302, destination);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
   }
-
-  return res.redirect(302, destination);
 });
 
 // Only shown when Review Suggestions is explicitly ON (admin-controlled) for a Google Review card,
@@ -854,20 +874,24 @@ function renderInactive(res) {
 }
 
 // ================= ADMIN =================
-app.get('/admin', requireAuth, (req, res) => {
-  const businesses = db.getBusinesses().filter(b => !b.ownerId); // admin-managed businesses only
-  const cards = db.getCards().filter(c => !c.customerId); // ONLY admin-created cards — customer-purchased cards never appear anywhere in Admin
+app.get('/admin', requireAuth, async (req, res) => {
+  try {
+    const allBusinesses = await db.getBusinesses();
+    const allCards = await db.getCards();
+    const businesses = allBusinesses.filter(b => !b.ownerId); // admin-managed businesses only
+    const cards = allCards.filter(c => !c.customerId); // ONLY admin-created cards — customer-purchased cards never appear anywhere in Admin
 
-  const rows = cards.map(c => {
-    const biz = db.getBusiness(c.businessId);
-    const redirectUrl = `${BASE_URL}/r/${c.publicCardId}`;
-    return `<tr>
-      <td>${escapeHtml(db.resolveCardBusinessName(c))}</td>
+    const rows = await Promise.all(cards.map(async c => {
+      const redirectUrl = `${BASE_URL}/r/${c.publicCardId}`;
+      const bizName = await db.resolveCardBusinessName(c);
+      const dest = await db.resolveDestination(c);
+      return `<tr>
+      <td>${escapeHtml(bizName)}</td>
       <td><code>${c.publicCardId}</code></td>
       <td><span class="badge ${c.status === 'ACTIVE' ? 'active' : 'inactive'}">${c.status}</span></td>
       <td>${c.primary ? '<span class="badge active">HOMEPAGE</span>' : ''}</td>
       <td style="max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(redirectUrl)}"><code>${escapeHtml(redirectUrl)}</code></td>
-      <td style="max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(db.resolveDestination(c) || '')}">${escapeHtml(db.resolveDestination(c) || '—')}</td>
+      <td style="max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(dest || '')}">${escapeHtml(dest || '—')}</td>
       <td>
         <div style="display:flex; flex-wrap:wrap; gap:6px;">
           <a href="/card/${c.publicCardId}" class="btn-small" style="text-decoration:none; display:inline-block;">View</a>
@@ -879,22 +903,79 @@ app.get('/admin', requireAuth, (req, res) => {
         </div>
       </td>
     </tr>`;
-  }).join('');
+    }));
 
-  const bizOptions = businesses.map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
-  const cardOptions = cards.map(c => {
-    const biz = db.getBusiness(c.businessId);
-    return `<option value="${c.publicCardId}">${c.publicCardId} — ${escapeHtml(db.resolveCardBusinessName(c))}</option>`;
-  }).join('');
+    const bizOptions = businesses.map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
+    const cardOptions = await Promise.all(cards.map(async c => {
+      const bizName = await db.resolveCardBusinessName(c);
+      return `<option value="${c.publicCardId}">${c.publicCardId} — ${escapeHtml(bizName)}</option>`;
+    }));
 
-  const body = `
+    // Review suggestions table rows
+    const allCardsForSuggestions = await db.getCards(); // include customer cards for suggestions view
+    const suggRows = await Promise.all(allCardsForSuggestions.map(async c => {
+      const dest = await db.resolveDestination(c);
+      const bizName = await db.resolveCardBusinessName(c);
+      const isGoogle = db.isGoogleReviewDestination(dest);
+      const on = !!(c.reviewSuggestions && c.reviewSuggestions.enabled);
+      const prompts = db.getCardReviewPrompts(c);
+      return `<tr>
+              <td><code>${c.publicCardId}</code></td>
+              <td>${escapeHtml(bizName)}</td>
+              <td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(dest || '')}">${escapeHtml(dest || '—')}</td>
+              <td>${isGoogle ? (on ? '<span class="badge active">ON</span>' : '<span class="badge inactive">OFF</span>') : '<span style="color:#666;">N/A (non-Google)</span>'}</td>
+              <td>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                  ${isGoogle ? `<button class="btn-small" onclick="toggleAdminSuggestions('${c.publicCardId}', ${!on})">${on ? 'Turn Off' : 'Turn On'}</button>` : ''}
+                  ${isGoogle ? `<button class="btn-small edit-admin-prompts-btn" data-card-id="${escapeHtml(c.publicCardId)}" data-prompts="${escapeHtml(JSON.stringify(prompts))}">Edit 5 Prompts</button>` : ''}
+                </div>
+              </td>
+            </tr>`;
+    }));
+
+    const customers = await db.getCustomers();
+    const customerRows = await Promise.all(customers.map(async cu => {
+      const custOrders = await db.getOrdersByCustomer(cu.id);
+      const custCards = await db.getCardsByCustomer(cu.id);
+      return `<tr>
+              <td>${escapeHtml(cu.name)}</td>
+              <td>${escapeHtml(cu.email)}</td>
+              <td>${new Date(cu.createdAt).toLocaleDateString()}</td>
+              <td>${custOrders.length}</td>
+              <td>${custCards.length}</td>
+            </tr>`;
+    }));
+
+    const orders = await db.getOrders();
+    const orderRows = await Promise.all(orders.slice().reverse().map(async o => {
+      const cust = await db.getCustomerById(o.customerId);
+      const name = cust ? cust.name : (o.checkout ? o.checkout.name : '—');
+      const bizName = cust ? '' : (o.checkout ? o.checkout.businessName : '');
+      const email = cust ? cust.email : (o.checkout ? o.checkout.email : '—');
+      const phone = o.checkout && o.checkout.phone ? o.checkout.phone : '—';
+      const statusClass = o.paymentStatus === 'PAID' ? 'active' : (o.paymentStatus === 'FAILED' ? 'inactive' : '');
+      const statusStyle = o.paymentStatus === 'PENDING_PAYMENT' ? 'style="background:rgba(255,180,60,.15); color:#e0a03c; border:1px solid rgba(255,180,60,.35);"' : '';
+      return `<tr>
+              <td><code>${o.id}</code></td>
+              <td>${escapeHtml(name)}${bizName ? ' · ' + escapeHtml(bizName) : ''}</td>
+              <td style="font-size:12px;">${escapeHtml(email)}<br/>${escapeHtml(phone)}</td>
+              <td>${o.plan}</td>
+              <td>${o.quantity}</td>
+              <td>₹${Number(o.amount).toLocaleString('en-IN')}</td>
+              <td><span class="badge ${statusClass}" ${statusStyle}>${o.paymentStatus}</span></td>
+              <td>${new Date(o.createdAt).toLocaleDateString()}</td>
+              <td>${o.paymentStatus === 'PENDING_PAYMENT' ? `<button class="btn-small" onclick="confirmPayment('${o.id}')">Confirm Payment</button>` : (o.cardsGenerated ? `${o.quantity} cards created` : '—')}</td>
+            </tr>`;
+    }));
+
+    const body = `
   <div class="container" style="padding:40px 24px 80px;">
     <h1 style="letter-spacing:.5px;">Admin — Tap2Review</h1>
 
     <div class="panel">
       <h2>Manage a Card</h2>
       <label>Select Card</label>
-      <select id="cardJumpSelect">${cardOptions}</select>
+      <select id="cardJumpSelect">${cardOptions.join('')}</select>
       <button class="btn-small" onclick="jumpToCard()">View Selected Card</button>
     </div>
 
@@ -934,7 +1015,7 @@ app.get('/admin', requireAuth, (req, res) => {
       <p style="color:var(--gray); font-size:13px; margin-top:-6px;">Overrides where a specific card redirects, independent of its business's default. Leave blank to clear the override.</p>
       <form onsubmit="updateCardDestination(event)">
         <label>Card</label>
-        <select name="cardId" required>${cardOptions}</select>
+        <select name="cardId" required>${cardOptions.join('')}</select>
         <label>New Destination URL</label>
         <input name="destinationUrl" placeholder="https://instagram.com/yourbusiness"/>
         <button class="btn-small" type="submit">Update Destination</button>
@@ -945,7 +1026,7 @@ app.get('/admin', requireAuth, (req, res) => {
       <h2>Cards</h2>
       <table>
         <thead><tr><th>Business</th><th>Card ID</th><th>Status</th><th>Homepage</th><th>Permanent Redirect URL</th><th>Current Destination</th><th>Actions</th></tr></thead>
-        <tbody>${rows}</tbody>
+        <tbody>${rows.join('')}</tbody>
       </table>
     </div>
 
@@ -957,74 +1038,27 @@ app.get('/admin', requireAuth, (req, res) => {
       <table>
         <thead><tr><th>Card ID</th><th>Business Name</th><th>Destination</th><th>Suggestions</th><th>Actions</th></tr></thead>
         <tbody>
-          ${cards.map(c => {
-            const dest = db.resolveDestination(c);
-            const bizName = db.resolveCardBusinessName(c);
-            const isGoogle = db.isGoogleReviewDestination(dest);
-            const on = !!(c.reviewSuggestions && c.reviewSuggestions.enabled);
-            const prompts = db.getCardReviewPrompts(c);
-            return `<tr>
-              <td><code>${c.publicCardId}</code></td>
-              <td>${escapeHtml(bizName)}</td>
-              <td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(dest || '')}">${escapeHtml(dest || '—')}</td>
-              <td>${isGoogle ? (on ? '<span class="badge active">ON</span>' : '<span class="badge inactive">OFF</span>') : '<span style="color:#666;">N/A (non-Google)</span>'}</td>
-              <td>
-                <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                  ${isGoogle ? `<button class="btn-small" onclick="toggleAdminSuggestions('${c.publicCardId}', ${!on})">${on ? 'Turn Off' : 'Turn On'}</button>` : ''}
-                  ${isGoogle ? `<button class="btn-small edit-admin-prompts-btn" data-card-id="${escapeHtml(c.publicCardId)}" data-prompts="${escapeHtml(JSON.stringify(prompts))}">Edit 5 Prompts</button>` : ''}
-                </div>
-              </td>
-            </tr>`;
-          }).join('') || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}
+          ${suggRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}
         </tbody>
       </table>
     </div>
 
     <div class="panel">
-      <h2>Customers (${db.getCustomers().length})</h2>
+      <h2>Customers (${customers.length})</h2>
       <table>
         <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Orders</th><th>Cards</th></tr></thead>
         <tbody>
-          ${db.getCustomers().map(cu => {
-            const custOrders = db.getOrdersByCustomer(cu.id);
-            const custCards = db.getCardsByCustomer(cu.id);
-            return `<tr>
-              <td>${escapeHtml(cu.name)}</td>
-              <td>${escapeHtml(cu.email)}</td>
-              <td>${new Date(cu.createdAt).toLocaleDateString()}</td>
-              <td>${custOrders.length}</td>
-              <td>${custCards.length}</td>
-            </tr>`;
-          }).join('') || '<tr><td colspan="5" style="color:var(--gray);">No customers yet.</td></tr>'}
+          ${customerRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No customers yet.</td></tr>'}
         </tbody>
       </table>
     </div>
 
     <div class="panel">
-      <h2>Orders (${db.getOrders().length})</h2>
+      <h2>Orders (${orders.length})</h2>
       <table>
         <thead><tr><th>Order ID</th><th>Customer / Business</th><th>Contact</th><th>Plan</th><th>Qty</th><th>Amount</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
         <tbody>
-          ${db.getOrders().slice().reverse().map(o => {
-            const cust = db.getCustomerById(o.customerId);
-            const name = cust ? cust.name : (o.checkout ? o.checkout.name : '—');
-            const bizName = cust ? '' : (o.checkout ? o.checkout.businessName : '');
-            const email = cust ? cust.email : (o.checkout ? o.checkout.email : '—');
-            const phone = o.checkout && o.checkout.phone ? o.checkout.phone : '—';
-            const statusClass = o.paymentStatus === 'PAID' ? 'active' : (o.paymentStatus === 'FAILED' ? 'inactive' : '');
-            const statusStyle = o.paymentStatus === 'PENDING_PAYMENT' ? 'style="background:rgba(255,180,60,.15); color:#e0a03c; border:1px solid rgba(255,180,60,.35);"' : '';
-            return `<tr>
-              <td><code>${o.id}</code></td>
-              <td>${escapeHtml(name)}${bizName ? ' · ' + escapeHtml(bizName) : ''}</td>
-              <td style="font-size:12px;">${escapeHtml(email)}<br/>${escapeHtml(phone)}</td>
-              <td>${o.plan}</td>
-              <td>${o.quantity}</td>
-              <td>₹${Number(o.amount).toLocaleString('en-IN')}</td>
-              <td><span class="badge ${statusClass}" ${statusStyle}>${o.paymentStatus}</span></td>
-              <td>${new Date(o.createdAt).toLocaleDateString()}</td>
-              <td>${o.paymentStatus === 'PENDING_PAYMENT' ? `<button class="btn-small" onclick="confirmPayment('${o.id}')">Confirm Payment</button>` : (o.cardsGenerated ? `${o.quantity} cards created` : '—')}</td>
-            </tr>`;
-          }).join('') || '<tr><td colspan="9" style="color:var(--gray);">No orders yet.</td></tr>'}
+          ${orderRows.join('') || '<tr><td colspan="9" style="color:var(--gray);">No orders yet.</td></tr>'}
         </tbody>
       </table>
     </div>
@@ -1047,7 +1081,11 @@ app.get('/admin', requireAuth, (req, res) => {
     </div>
   </div>
   `;
-  res.send(page({ title: 'Admin — Tap2Review', body }));
+    res.send(page({ title: 'Admin — Tap2Review', body }));
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Server error');
+  }
 });
 
 // Server-side enforcement (not just UI hiding): admin card actions must never
@@ -1055,8 +1093,8 @@ app.get('/admin', requireAuth, (req, res) => {
 // directly with a known customer card ID. Customer cards are managed
 // exclusively through the customer's own dashboard (with its own ownership
 // checks — see ownedCardOr403 above).
-function adminOwnedCardOr403(cardId, res) {
-  const card = db.getCardByPublicId(cardId);
+async function adminOwnedCardOr403(cardId, res) {
+  const card = await db.getCardByPublicId(cardId);
   if (!card) {
     res.status(404).json({ error: 'Not found' });
     return null;
@@ -1074,19 +1112,19 @@ function adminOwnedCardOr403(cardId, res) {
 // Idempotent: fulfillPaidOrder() no-ops if cardsGenerated is already true,
 // so double-clicking "Confirm Payment" cannot create duplicate cards.
 app.post('/admin/api/order/:orderId/confirm-payment', requireAuth, async (req, res) => {
-  const order = db.getOrderById(req.params.orderId);
+  const order = await db.getOrderById(req.params.orderId);
   if (!order) return res.status(404).json({ error: 'Order not found' });
   if (!order.checkout) return res.status(400).json({ error: 'This order has no checkout details to fulfill (legacy order).' });
 
-  db.markOrderPaid(order.id, 'MANUAL-WHATSAPP-' + Date.now());
-  const { customer, cards } = await fulfillPaidOrder(db.getOrderById(order.id));
+  await db.markOrderPaid(order.id, 'MANUAL-WHATSAPP-' + Date.now());
+  const { customer, cards } = await fulfillPaidOrder(await db.getOrderById(order.id));
   res.json({ orderId: order.id, customerId: customer.id, cardsCreated: cards.length });
 });
 
-app.post('/admin/api/card/primary', requireAuth, (req, res) => {
+app.post('/admin/api/card/primary', requireAuth, async (req, res) => {
   const { cardId } = req.body;
-  if (!adminOwnedCardOr403(cardId, res)) return;
-  const card = db.setPrimaryCard(cardId);
+  if (!(await adminOwnedCardOr403(cardId, res))) return;
+  const card = await db.setPrimaryCard(cardId);
   if (!card) return res.status(404).json({ error: 'Not found' });
   res.json(card);
 });
@@ -1095,20 +1133,20 @@ app.post('/admin/api/card/primary', requireAuth, (req, res) => {
 // completely separate credential from customer sessions), and — per the
 // customer-card isolation requirement — restricted to admin-created cards
 // only. Customer-purchased cards are never listed or actionable here. ----
-app.post('/admin/api/card/:cardId/suggestions', requireAuth, (req, res) => {
-  const card = adminOwnedCardOr403(req.params.cardId, res);
+app.post('/admin/api/card/:cardId/suggestions', requireAuth, async (req, res) => {
+  const card = await adminOwnedCardOr403(req.params.cardId, res);
   if (!card) return;
-  const dest = db.resolveDestination(card);
+  const dest = await db.resolveDestination(card);
   if (req.body.enabled && !db.isGoogleReviewDestination(dest)) {
     return res.status(400).json({ error: 'Review Suggestions only apply to Google Review destinations.' });
   }
-  res.json(db.setCardReviewSuggestions(card.publicCardId, !!req.body.enabled));
+  res.json(await db.setCardReviewSuggestions(card.publicCardId, !!req.body.enabled));
 });
 
-app.post('/admin/api/card/:cardId/prompts', requireAuth, (req, res) => {
-  const card = adminOwnedCardOr403(req.params.cardId, res);
+app.post('/admin/api/card/:cardId/prompts', requireAuth, async (req, res) => {
+  const card = await adminOwnedCardOr403(req.params.cardId, res);
   if (!card) return;
-  const dest = db.resolveDestination(card);
+  const dest = await db.resolveDestination(card);
   if (!db.isGoogleReviewDestination(dest)) {
     return res.status(400).json({ error: 'Review Suggestions only apply to Google Review destinations.' });
   }
@@ -1119,51 +1157,51 @@ app.post('/admin/api/card/:cardId/prompts', requireAuth, (req, res) => {
   if (prompts.some(p => p.length > 150)) {
     return res.status(400).json({ error: 'Each prompt must be 150 characters or fewer.' });
   }
-  res.json(db.setCardReviewPrompts(card.publicCardId, prompts));
+  res.json(await db.setCardReviewPrompts(card.publicCardId, prompts));
 });
 
-app.post('/admin/api/business', requireAuth, (req, res) => {
+app.post('/admin/api/business', requireAuth, async (req, res) => {
   const { name, reviewUrl } = req.body;
   if (!name || !reviewUrl || !isValidHttpUrl(reviewUrl)) return res.status(400).json({ error: 'Invalid input' });
-  const biz = db.createBusiness({ name, reviewUrl });
+  const biz = await db.createBusiness({ name, reviewUrl });
   res.json(biz);
 });
 
-app.post('/admin/api/business/profile', requireAuth, (req, res) => {
+app.post('/admin/api/business/profile', requireAuth, async (req, res) => {
   const { businessId, name } = req.body;
   if (!businessId) return res.status(400).json({ error: 'Invalid input' });
-  const biz = db.getBusiness(businessId);
+  const biz = await db.getBusiness(businessId);
   if (!biz) return res.status(404).json({ error: 'Not found' });
   if (biz.ownerId) return res.status(403).json({ error: 'This business belongs to a customer and cannot be managed from Admin.' });
-  const updated = db.updateBusinessProfile(businessId, { name: name || undefined });
+  const updated = await db.updateBusinessProfile(businessId, { name: name || undefined });
   res.json(updated);
 });
 
-app.post('/admin/api/card', requireAuth, (req, res) => {
+app.post('/admin/api/card', requireAuth, async (req, res) => {
   const { businessId } = req.body;
-  const biz = db.getBusiness(businessId);
+  const biz = await db.getBusiness(businessId);
   if (!biz) return res.status(400).json({ error: 'Invalid business' });
   if (biz.ownerId) return res.status(403).json({ error: 'Cannot create admin cards under a customer-owned business.' });
-  const card = db.createCard({ businessId });
+  const card = await db.createCard({ businessId });
   res.json(card);
 });
 
-app.post('/admin/api/card/status', requireAuth, (req, res) => {
+app.post('/admin/api/card/status', requireAuth, async (req, res) => {
   const { cardId, status } = req.body;
   if (!['ACTIVE', 'INACTIVE'].includes(status)) return res.status(400).json({ error: 'Invalid status' });
-  if (!adminOwnedCardOr403(cardId, res)) return;
-  const card = db.setCardStatus(cardId, status);
+  if (!(await adminOwnedCardOr403(cardId, res))) return;
+  const card = await db.setCardStatus(cardId, status);
   if (!card) return res.status(404).json({ error: 'Not found' });
   res.json(card);
 });
 
-app.post('/admin/api/card/destination', requireAuth, (req, res) => {
+app.post('/admin/api/card/destination', requireAuth, async (req, res) => {
   const { cardId, destinationUrl } = req.body;
   if (!cardId) return res.status(400).json({ error: 'Missing cardId' });
-  if (!adminOwnedCardOr403(cardId, res)) return;
+  if (!(await adminOwnedCardOr403(cardId, res))) return;
   // Allow clearing the override (empty string) to fall back to business default
   if (destinationUrl && !isValidHttpUrl(destinationUrl)) return res.status(400).json({ error: 'Invalid URL' });
-  const card = db.setCardDestination(cardId, destinationUrl);
+  const card = await db.setCardDestination(cardId, destinationUrl);
   if (!card) return res.status(404).json({ error: 'Not found' });
   res.json(card);
 });
@@ -1172,6 +1210,12 @@ function escapeHtml(str) {
   return String(str).replace(/[&<>"']/g, s => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[s]));
 }
 
-app.listen(PORT, () => {
-  console.log(`Tap2Review running at ${BASE_URL}`);
+// ================= START (connect to MongoDB first, then listen) =================
+db.connect().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Tap2Review running at ${BASE_URL}`);
+  });
+}).catch(err => {
+  console.error('❌ Failed to connect to MongoDB:', err.message);
+  process.exit(1);
 });
