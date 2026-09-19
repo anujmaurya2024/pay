@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const QRCode = require('qrcode');
 const { page } = require('./layout');
 const db = require('./db');
@@ -17,6 +18,11 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-only-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGODB_URI,
+    ttl: 60 * 60 * 24 * 7, // 7 days in seconds
+    autoRemove: 'native',
+  }),
   cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 24 * 7 }, // 7 days
 }));
 
