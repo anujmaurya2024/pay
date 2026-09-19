@@ -297,7 +297,7 @@ function page({ title = 'Tap2Review', body = '', nav = true, footer = true }) {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
 <title>${title}</title>
 <link rel="stylesheet" href="/css/styles.css">
 </head>
@@ -313,16 +313,38 @@ ${nav ? `<div class="nav">
     <a href="/login" class="link">Login</a>
     <a href="/admin" class="btn">Admin</a>
   </div>
-</div>` : ''}
+  <button class="nav-toggle" id="navToggle" aria-label="Toggle navigation" type="button" onclick="toggleMobileNav()">
+    <span></span><span></span><span></span>
+  </button>
+  <div class="nav-mobile-menu" id="navMobileMenu">
+    <a href="/how-it-works" onclick="toggleMobileNav()">How It Works</a>
+    <a href="/demo" onclick="toggleMobileNav()">Demo</a>
+    <a href="/pricing" onclick="toggleMobileNav()">Pricing</a>
+    <a href="/faq" onclick="toggleMobileNav()">FAQ</a>
+    <a href="https://wa.me/${WHATSAPP_NUMBER}" target="_blank">WhatsApp Support</a>
+    <a href="/login" onclick="toggleMobileNav()">Customer Login</a>
+    <a href="/admin" class="mobile-admin-btn" onclick="toggleMobileNav()">Admin Portal</a>
+  </div>
+</div>
+<script>
+function toggleMobileNav() {
+  var t = document.getElementById('navToggle');
+  var m = document.getElementById('navMobileMenu');
+  if (t && m) {
+    t.classList.toggle('open');
+    m.classList.toggle('open');
+  }
+}
+</script>` : ''}
 ${body}
 ${footer ? `<footer>
   <div class="foot-brand">TAP2REVIEW</div>
   <div style="color:var(--gray); font-size:12px; margin-bottom:6px;">© 2026 Tap2Review. All rights reserved.</div>
-  <div style="margin-top:6px; color:var(--gray); font-size:13px; display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:8px;">
+  <div class="footer-links">
     <span>For technical glitches & queries: Developer <strong style="color:var(--gold);">ANUJ MAURYA</strong></span>
-    <span>·</span>
+    <span class="foot-dot">·</span>
     <a href="tel:+919305178105" style="color:var(--gold); font-weight:600; text-decoration:none;">📞 +91 9305178105</a>
-    <span>·</span>
+    <span class="foot-dot">·</span>
     <a href="https://wa.me/919305178105?text=Hi%20Anuj%2C%20I%20have%20a%20technical%20glitch%2Fquery%20regarding%20Tap2Review" target="_blank" style="display:inline-flex; align-items:center; gap:4px; background:#25D366; color:#000; font-weight:700; font-size:12px; padding:3px 10px; border-radius:12px; text-decoration:none;">
       💬 Technical Support
     </a>

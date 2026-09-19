@@ -301,7 +301,7 @@ app.get('/pricing', (req, res) => {
   const body = `
   <div class="container" style="padding:70px 24px 100px;">
     <div class="section-head reveal"><div class="section-tag">Pricing</div><h2>Simple, one-time pricing</h2><p>Buy cards once — no subscriptions.</p></div>
-    <div class="benefit-grid" style="grid-template-columns:repeat(3,1fr);">${cards}</div>
+    <div class="pricing-grid">${cards}</div>
     <p style="text-align:center; color:var(--gray); font-size:13px; margin-top:40px;">
       Prefer to order over chat? <a href="https://wa.me/${WHATSAPP_NUMBER}" style="color:var(--gold);" target="_blank">Message us on WhatsApp</a>.
     </p>
@@ -742,18 +742,22 @@ app.get('/dashboard', requireCustomerAuth, async (req, res) => {
     <div class="panel">
       <h2>My Cards (${myCards.length})</h2>
       <p style="color:var(--gray); font-size:13px; margin-top:-6px;">Review Suggestions (if enabled) are managed by Tap2Review admin and cannot be changed here.</p>
-      <table>
-        <thead><tr><th>Card ID</th><th>Business Name</th><th>Status</th><th>Destination</th><th>Actions</th></tr></thead>
-        <tbody>${cardRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}</tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Card ID</th><th>Business Name</th><th>Status</th><th>Destination</th><th>Actions</th></tr></thead>
+          <tbody>${cardRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}</tbody>
+        </table>
+      </div>
     </div>
 
     <div class="panel">
       <h2>Order History (${(myOrders || []).length})</h2>
-      <table>
-        <thead><tr><th>Order ID</th><th>Plan</th><th>Cards</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
-        <tbody>${orderRows.join('') || '<tr><td colspan="6" style="color:var(--gray);">No orders found.</td></tr>'}</tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Order ID</th><th>Plan</th><th>Cards</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+          <tbody>${orderRows.join('') || '<tr><td colspan="6" style="color:var(--gray);">No orders found.</td></tr>'}</tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -883,14 +887,14 @@ app.get('/card/:cardId', async (req, res) => {
 
       <label>Permanent Redirect URL (used in QR + NFC)</label>
       <div style="display:flex; gap:8px; margin-bottom:16px;">
-        <input readonly id="redirectUrlInput" value="${BASE_URL}/r/${cardId}" style="margin-bottom:0;"/>
-        <button class="btn-small" onclick="copyRedirect()">Copy</button>
+        <input readonly id="redirectUrlInput" value="${BASE_URL}/r/${cardId}" style="margin-bottom:0; min-width:0; flex:1;"/>
+        <button class="btn-small" style="flex-shrink:0;" onclick="copyRedirect()">Copy</button>
       </div>
 
       <label>NFC URL (write this exact URL to the NFC chip)</label>
       <div style="display:flex; gap:8px; margin-bottom:16px;">
-        <input readonly id="nfcUrlInput" value="${BASE_URL}/r/${cardId}" style="margin-bottom:0;"/>
-        <button class="btn-small" onclick="copyNfc()">Copy</button>
+        <input readonly id="nfcUrlInput" value="${BASE_URL}/r/${cardId}" style="margin-bottom:0; min-width:0; flex:1;"/>
+        <button class="btn-small" style="flex-shrink:0;" onclick="copyNfc()">Copy</button>
       </div>
       <p style="color:#666; font-size:12px; margin:-8px 0 16px;">The NFC URL is always identical to the Permanent Redirect URL above.</p>
 
@@ -898,9 +902,9 @@ app.get('/card/:cardId', async (req, res) => {
       <input readonly value="${escapeHtml(destination || 'Not configured')}" style="margin-bottom:0;"/>
     </div>
 
-    <div style="max-width:420px; margin:14px auto 0; display:flex; gap:10px;">
-      <button class="btn-small" style="flex:1" onclick="copyRedirect()">Copy Redirect URL</button>
-      <a class="btn-small" style="flex:1; text-align:center; display:inline-block; text-decoration:none;" href="/api/qr/${encodeURIComponent(cardId)}?download=1" download="tapreview-${cardId}.png">Download QR</a>
+    <div style="max-width:420px; margin:14px auto 0; display:flex; gap:10px; flex-wrap:wrap;">
+      <button class="btn-small" style="flex:1; min-width:140px;" onclick="copyRedirect()">Copy Redirect URL</button>
+      <a class="btn-small" style="flex:1; min-width:140px; text-align:center; display:inline-block; text-decoration:none;" href="/api/qr/${encodeURIComponent(cardId)}?download=1" download="tapreview-${cardId}.png">Download QR</a>
     </div>
   </div>
   <script>
@@ -1163,30 +1167,36 @@ app.get('/admin', requireAuth, async (req, res) => {
 
     <div class="panel">
       <h2>Cards</h2>
-      <table>
-        <thead><tr><th>Business</th><th>Card ID</th><th>Status</th><th>Homepage</th><th>Permanent Redirect URL</th><th>Current Destination</th><th>Actions</th></tr></thead>
-        <tbody>${rows.join('')}</tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Business</th><th>Card ID</th><th>Status</th><th>Homepage</th><th>Permanent Redirect URL</th><th>Current Destination</th><th>Actions</th></tr></thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      </div>
     </div>
 
     <div class="panel">
       <h2>Customers (${customers.length})</h2>
-      <table>
-        <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Orders</th><th>Cards</th><th>Actions</th></tr></thead>
-        <tbody>
-          ${customerRows.join('') || '<tr><td colspan="6" style="color:var(--gray);">No customers yet.</td></tr>'}
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Orders</th><th>Cards</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${customerRows.join('') || '<tr><td colspan="6" style="color:var(--gray);">No customers yet.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="panel">
       <h2>Orders (${orders.length})</h2>
-      <table>
-        <thead><tr><th>Order ID</th><th>Customer / Business</th><th>Contact</th><th>Plan</th><th>Qty</th><th>Amount</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
-        <tbody>
-          ${orderRows.join('') || '<tr><td colspan="9" style="color:var(--gray);">No orders yet.</td></tr>'}
-        </tbody>
-      </table>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Order ID</th><th>Customer / Business</th><th>Contact</th><th>Plan</th><th>Qty</th><th>Amount</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${orderRows.join('') || '<tr><td colspan="9" style="color:var(--gray);">No orders yet.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
   <script src="/js/admin.js"></script>
