@@ -317,9 +317,12 @@ ${nav ? `<div class="nav">
 ${body}
 ${footer ? `<footer>
   <div class="foot-brand">TAP2REVIEW</div>
-  <div>© 2026 Tap2Review. All rights reserved.</div>
-  <div style="margin-top:10px; color:var(--gray); font-size:13px;">
-    For any query: Developer <a href="https://wa.me/${WHATSAPP_NUMBER}" target="_blank" style="color:var(--gold); font-weight:700; text-decoration:underline;">ANUJ MAURYA</a>
+  <div style="color:var(--gray); font-size:12px; margin-bottom:6px;">© 2026 Tap2Review. All rights reserved.</div>
+  <div style="margin-top:6px; color:var(--gray); font-size:13px; display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:6px;">
+    <span>For any query: Developer <strong style="color:var(--gold);">ANUJ MAURYA</strong></span>
+    <span>·</span>
+    <a href="tel:+919305178105" style="color:var(--gold); font-weight:600; text-decoration:none;">📞 +91 9305178105</a>
+    <span>(<a href="https://wa.me/919305178105" target="_blank" style="color:var(--gold-soft); text-decoration:underline;">WhatsApp</a>)</span>
   </div>
 </footer>` : ''}
 ${REVEAL_SCRIPT}
