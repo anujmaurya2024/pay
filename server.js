@@ -1192,16 +1192,21 @@ app.get('/admin', requireAuth, async (req, res) => {
     </div>
 
     <div class="panel">
-      <h2>Review Suggestions (All Cards)</h2>
-      <p style="color:var(--gray); font-size:13px; margin-top:-6px;">
-        Admin-only. Applies to every card — including customer-purchased ones. Only relevant when a card's destination is a Google Review URL; non-Google cards always redirect directly regardless of this setting.
-      </p>
-      <table>
-        <thead><tr><th>Card ID</th><th>Business Name</th><th>Destination</th><th>Suggestions</th><th>Actions</th></tr></thead>
-        <tbody>
-          ${suggRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}
-        </tbody>
-      </table>
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <h2 style="margin:0;">Review Suggestions (All Cards)</h2>
+        <button class="btn-small" id="toggleSuggestionsBtn" onclick="toggleSuggestionsSection()" type="button">Show Section</button>
+      </div>
+      <div id="suggestionsSectionBody" style="display:none; margin-top:16px;">
+        <p style="color:var(--gray); font-size:13px; margin-top:0;">
+          Admin-only. Applies to every card — including customer-purchased ones. Only relevant when a card's destination is a Google Review URL; non-Google cards always redirect directly regardless of this setting.
+        </p>
+        <table>
+          <thead><tr><th>Card ID</th><th>Business Name</th><th>Destination</th><th>Suggestions</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${suggRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
     </div>
 
     <div class="panel">

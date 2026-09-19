@@ -1,4 +1,4 @@
-﻿// ============================================================
+// ============================================================
 // Tap2Review � Admin Panel JS
 // Extracted from server.js /admin route inline script
 // ============================================================
@@ -113,3 +113,23 @@ async function adminResetPassword(customerId, email) {
   if (!res.ok) { alert(data.error || "Could not reset password."); return; }
   alert("Password reset successfully for " + data.email + ". They can now log in with the new password.");
 }
+
+function toggleSuggestionsSection() {
+  const body = document.getElementById("suggestionsSectionBody");
+  const btn = document.getElementById("toggleSuggestionsBtn");
+  if (!body) return;
+  const isHidden = body.style.display === "none";
+  body.style.display = isHidden ? "block" : "none";
+  if (btn) btn.textContent = isHidden ? "Hide Section" : "Show Section";
+  localStorage.setItem("showReviewSuggestions", isHidden ? "true" : "false");
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+  const show = localStorage.getItem("showReviewSuggestions") === "true";
+  const body = document.getElementById("suggestionsSectionBody");
+  const btn = document.getElementById("toggleSuggestionsBtn");
+  if (body && btn && show) {
+    body.style.display = "block";
+    btn.textContent = "Hide Section";
+  }
+});
