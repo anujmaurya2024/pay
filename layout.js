@@ -292,7 +292,7 @@ const REVEAL_SCRIPT = '<script src="/js/reveal.js"></script>';
 
 const { WHATSAPP_NUMBER } = require('./config');
 
-function page({ title = 'Tap2Review', body = '', nav = true }) {
+function page({ title = 'Tap2Review', body = '', nav = true, footer = true }) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -315,6 +315,13 @@ ${nav ? `<div class="nav">
   </div>
 </div>` : ''}
 ${body}
+${footer ? `<footer>
+  <div class="foot-brand">TAP2REVIEW</div>
+  <div>© 2026 Tap2Review. All rights reserved.</div>
+  <div style="margin-top:10px; color:var(--gray); font-size:13px;">
+    For any query: Developer <a href="https://wa.me/${WHATSAPP_NUMBER}" target="_blank" style="color:var(--gold); font-weight:700; text-decoration:underline;">ANUJ MAURYA</a>
+  </div>
+</footer>` : ''}
 ${REVEAL_SCRIPT}
 </body>
 </html>`;

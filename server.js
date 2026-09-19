@@ -231,11 +231,6 @@ app.get('/', async (req, res) => {
       <a href="/pricing" class="btn-primary">Buy Cards</a>
     </div>
   </div>
-
-  <footer>
-    <div class="foot-brand">TAP2REVIEW</div>
-    © 2026 Tap2Review. All rights reserved.
-  </footer>
   `;
     res.send(page({ title: 'Tap2Review — Turn Every Happy Customer Into a Review', body }));
   } catch (err) {
