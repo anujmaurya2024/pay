@@ -104,7 +104,7 @@ async function updateBusinessProfile(id, { name }) {
   const biz = await Business.findOneAndUpdate(
     { id },
     { ...(name ? { name } : {}) },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
   return biz;
 }
@@ -143,14 +143,14 @@ async function setCardBusinessName(publicCardId, businessName) {
   return Card.findOneAndUpdate(
     { publicCardId },
     { businessName: businessName || null },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 }
 async function setCardDetails(publicCardId, { businessName, destinationUrl }) {
   const update = {};
   if (businessName !== undefined) update.businessName = businessName || null;
   if (destinationUrl !== undefined) update.destinationUrl = destinationUrl || null;
-  return Card.findOneAndUpdate({ publicCardId }, update, { new: true }).lean();
+  return Card.findOneAndUpdate({ publicCardId }, update, { returnDocument: 'after' }).lean();
 }
 // Resolves the display name for a card: per-card override first, then linked
 // business name, then a safe fallback.
@@ -163,7 +163,7 @@ async function getCardsByCustomer(customerId) {
   return Card.find({ customerId }).lean();
 }
 async function setCardBusiness(publicCardId, businessId) {
-  return Card.findOneAndUpdate({ publicCardId }, { businessId }, { new: true }).lean();
+  return Card.findOneAndUpdate({ publicCardId }, { businessId }, { returnDocument: 'after' }).lean();
 }
 async function setCardReviewSuggestions(publicCardId, enabled) {
   // Preserve any custom prompts already set.
@@ -173,7 +173,7 @@ async function setCardReviewSuggestions(publicCardId, enabled) {
   return Card.findOneAndUpdate(
     { publicCardId },
     { reviewSuggestions: { ...existing, enabled: !!enabled } },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 }
 async function setCardReviewPrompts(publicCardId, prompts) {
@@ -183,7 +183,7 @@ async function setCardReviewPrompts(publicCardId, prompts) {
   return Card.findOneAndUpdate(
     { publicCardId },
     { reviewSuggestions: { ...existing, prompts } },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 }
 const DEFAULT_REVIEW_PROMPTS = [
@@ -206,7 +206,7 @@ async function setPrimaryCard(publicCardId) {
   if (!target) return null;
   // Clear primary on all cards, then set on the target
   await Card.updateMany({}, { primary: false });
-  return Card.findOneAndUpdate({ publicCardId }, { primary: true }, { new: true }).lean();
+  return Card.findOneAndUpdate({ publicCardId }, { primary: true }, { returnDocument: 'after' }).lean();
 }
 async function getPrimaryCard() {
   let primary = await Card.findOne({ primary: true, status: 'ACTIVE' }).lean();
@@ -216,13 +216,13 @@ async function getPrimaryCard() {
   return Card.findOne().lean();
 }
 async function setCardStatus(publicCardId, status) {
-  return Card.findOneAndUpdate({ publicCardId }, { status }, { new: true }).lean();
+  return Card.findOneAndUpdate({ publicCardId }, { status }, { returnDocument: 'after' }).lean();
 }
 async function setCardDestination(publicCardId, destinationUrl) {
   return Card.findOneAndUpdate(
     { publicCardId },
     { destinationUrl: destinationUrl || null },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 }
 
@@ -263,7 +263,7 @@ async function getCustomers() {
   return Customer.find().lean();
 }
 async function updateCustomerPassword(id, passwordHash) {
-  return Customer.findOneAndUpdate({ id }, { passwordHash }, { new: true }).lean();
+  return Customer.findOneAndUpdate({ id }, { passwordHash }, { returnDocument: 'after' }).lean();
 }
 
 // ─── ORDERS ──────────────────────────────────────────────────────────────────
@@ -297,19 +297,19 @@ async function markOrderPaid(orderId, paytmTxnId) {
   return Order.findOneAndUpdate(
     { id: orderId },
     { paymentStatus: 'PAID', paytmTxnId: paytmTxnId || null },
-    { new: true }
+    { returnDocument: 'after' }
   ).lean();
 }
 async function markOrderFailed(orderId) {
   const order = await Order.findOne({ id: orderId }).lean();
   if (!order || order.paymentStatus === 'PAID') return order || null; // never downgrade a paid order
-  return Order.findOneAndUpdate({ id: orderId }, { paymentStatus: 'FAILED' }, { new: true }).lean();
+  return Order.findOneAndUpdate({ id: orderId }, { paymentStatus: 'FAILED' }, { returnDocument: 'after' }).lean();
 }
 async function markOrderCardsGenerated(orderId) {
-  return Order.findOneAndUpdate({ id: orderId }, { cardsGenerated: true }, { new: true }).lean();
+  return Order.findOneAndUpdate({ id: orderId }, { cardsGenerated: true }, { returnDocument: 'after' }).lean();
 }
 async function setOrderCustomerId(orderId, customerId) {
-  return Order.findOneAndUpdate({ id: orderId }, { customerId }, { new: true }).lean();
+  return Order.findOneAndUpdate({ id: orderId }, { customerId }, { returnDocument: 'after' }).lean();
 }
 async function getOrders() {
   return Order.find().lean();

@@ -53,6 +53,26 @@ function loginRateLimiter(req, res, next) {
   next();
 }
 
+// In-memory rate limiting for purchase requests
+const purchaseAttempts = new Map();
+function purchaseRateLimiter(req, res, next) {
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const record = purchaseAttempts.get(ip);
+  if (record && record.resetAt > now) {
+    if (record.count >= 10) {
+      return res.status(429).send('Too many purchase requests from this network. Please wait 15 minutes or contact us directly on WhatsApp.');
+    }
+    record.count++;
+  } else {
+    purchaseAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+  }
+  next();
+}
+
+// In-memory rate limiting for admin login attempts
+const adminAttempts = new Map();
+
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const ADMIN_USER = process.env.ADMIN_USER || 'admin';
@@ -60,13 +80,28 @@ const ADMIN_PASS = process.env.ADMIN_PASS || 'tap2review123';
 
 // ---------- Basic Auth for /admin ----------
 function requireAuth(req, res, next) {
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const record = adminAttempts.get(ip);
+  if (record && record.resetAt > now && record.count >= 10) {
+    return res.status(429).send('Too many admin login attempts. Please wait 15 minutes.');
+  }
+
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Basic ')) {
     res.set('WWW-Authenticate', 'Basic realm="Tap2Review Admin"');
     return res.status(401).send('Authentication required.');
   }
   const [user, pass] = Buffer.from(auth.split(' ')[1], 'base64').toString().split(':');
-  if (user === ADMIN_USER && pass === ADMIN_PASS) return next();
+  if (user === ADMIN_USER && pass === ADMIN_PASS) {
+    adminAttempts.delete(ip);
+    return next();
+  }
+  if (record && record.resetAt > now) {
+    record.count++;
+  } else {
+    adminAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+  }
   res.set('WWW-Authenticate', 'Basic realm="Tap2Review Admin"');
   return res.status(401).send('Invalid credentials.');
 }
@@ -433,12 +468,31 @@ async function fulfillPaidOrder(order) {
 // No customer, business, or cards are created here, and no session is set.
 // The customer gets none of that until Admin confirms payment (see the
 // /admin/api/order/:orderId/confirm-payment route further down).
-app.post('/api/purchase-request', async (req, res) => {
+app.post('/api/purchase-request', purchaseRateLimiter, async (req, res) => {
   try {
     const { plan, name, businessName, email, phone, password } = req.body;
     const planDef = payments.getPlan(plan);
     if (!planDef || !name || !businessName || !email || !phone || !password) {
       return res.status(400).send('Missing or invalid details. <a href="/pricing">Go back</a>.');
+    }
+
+    const trimmedEmail = String(email).trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      return res.status(400).send('Please enter a valid email address. <a href="/pricing">Go back</a>.');
+    }
+
+    const trimmedPhone = String(phone).trim().replace(/[\s\-()]/g, '');
+    if (trimmedPhone.length < 10 || trimmedPhone.length > 15) {
+      return res.status(400).send('Please enter a valid phone number (at least 10 digits). <a href="/pricing">Go back</a>.');
+    }
+
+    if (String(password).length < 6) {
+      return res.status(400).send('Password must be at least 6 characters. <a href="/pricing">Go back</a>.');
+    }
+
+    if (String(name).length > 100 || String(businessName).length > 100) {
+      return res.status(400).send('Name or business name is too long (maximum 100 characters). <a href="/pricing">Go back</a>.');
     }
 
     const passwordHash = await hashPassword(password);
@@ -641,6 +695,21 @@ app.get('/dashboard', requireCustomerAuth, async (req, res) => {
     </tr>`;
     }));
 
+    const myOrders = await db.getOrdersByCustomer(customer.id);
+
+    const orderRows = (myOrders || []).slice().reverse().map(o => {
+      const statusClass = o.paymentStatus === 'PAID' ? 'active' : (o.paymentStatus === 'FAILED' ? 'inactive' : '');
+      const statusStyle = o.paymentStatus === 'PENDING_PAYMENT' ? 'style="background:rgba(255,180,60,.15); color:#e0a03c; border:1px solid rgba(255,180,60,.35);"' : '';
+      return `<tr>
+        <td><code>${escapeHtml(o.id)}</code></td>
+        <td>${escapeHtml(o.plan)} Cards</td>
+        <td>${o.quantity}</td>
+        <td>₹${Number(o.amount).toLocaleString('en-IN')}</td>
+        <td><span class="badge ${statusClass}" ${statusStyle}>${escapeHtml(o.paymentStatus)}</span></td>
+        <td>${new Date(o.createdAt).toLocaleDateString()}</td>
+      </tr>`;
+    });
+
     const body = `
   <div class="container" style="padding:40px 24px 90px;">
     <div class="flex-between">
@@ -667,6 +736,14 @@ app.get('/dashboard', requireCustomerAuth, async (req, res) => {
       <table>
         <thead><tr><th>Card ID</th><th>Business Name</th><th>Status</th><th>Destination</th><th>Actions</th></tr></thead>
         <tbody>${cardRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}</tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <h2>Order History (${(myOrders || []).length})</h2>
+      <table>
+        <thead><tr><th>Order ID</th><th>Plan</th><th>Cards</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+        <tbody>${orderRows.join('') || '<tr><td colspan="6" style="color:var(--gray);">No orders found.</td></tr>'}</tbody>
       </table>
     </div>
   </div>
@@ -1204,13 +1281,12 @@ app.post('/admin/api/card/primary', requireAuth, async (req, res) => {
   res.json(card);
 });
 
-// ---- Review Suggestions: ADMIN-ONLY (requireAuth = admin Basic Auth, a
-// completely separate credential from customer sessions), and — per the
-// customer-card isolation requirement — restricted to admin-created cards
-// only. Customer-purchased cards are never listed or actionable here. ----
+// ---- Review Suggestions: ADMIN-ONLY (requireAuth = admin Basic Auth).
+// Applies to all cards (including customer-purchased ones) as displayed in the
+// Admin 'Review Suggestions (All Cards)' panel. Customers cannot modify suggestions. ----
 app.post('/admin/api/card/:cardId/suggestions', requireAuth, async (req, res) => {
-  const card = await adminOwnedCardOr403(req.params.cardId, res);
-  if (!card) return;
+  const card = await db.getCardByPublicId(req.params.cardId);
+  if (!card) return res.status(404).json({ error: 'Card not found' });
   const dest = await db.resolveDestination(card);
   if (req.body.enabled && !db.isGoogleReviewDestination(dest)) {
     return res.status(400).json({ error: 'Review Suggestions only apply to Google Review destinations.' });
@@ -1219,8 +1295,8 @@ app.post('/admin/api/card/:cardId/suggestions', requireAuth, async (req, res) =>
 });
 
 app.post('/admin/api/card/:cardId/prompts', requireAuth, async (req, res) => {
-  const card = await adminOwnedCardOr403(req.params.cardId, res);
-  if (!card) return;
+  const card = await db.getCardByPublicId(req.params.cardId);
+  if (!card) return res.status(404).json({ error: 'Card not found' });
   const dest = await db.resolveDestination(card);
   if (!db.isGoogleReviewDestination(dest)) {
     return res.status(400).json({ error: 'Review Suggestions only apply to Google Review destinations.' });

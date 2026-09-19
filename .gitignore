@@ -7,6 +7,9 @@ node_modules
 
 # Runtime database — preserved on Render via Persistent Disk
 data/db.json
+data/*.backup*.json
+data/backup-*.json
+data/*.bak
 
 # Logs
 *.log
