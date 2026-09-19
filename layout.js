@@ -318,11 +318,14 @@ ${body}
 ${footer ? `<footer>
   <div class="foot-brand">TAP2REVIEW</div>
   <div style="color:var(--gray); font-size:12px; margin-bottom:6px;">© 2026 Tap2Review. All rights reserved.</div>
-  <div style="margin-top:6px; color:var(--gray); font-size:13px; display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:6px;">
+  <div style="margin-top:6px; color:var(--gray); font-size:13px; display:flex; justify-content:center; align-items:center; flex-wrap:wrap; gap:8px;">
     <span>For any query: Developer <strong style="color:var(--gold);">ANUJ MAURYA</strong></span>
     <span>·</span>
     <a href="tel:+919305178105" style="color:var(--gold); font-weight:600; text-decoration:none;">📞 +91 9305178105</a>
-    <span>(<a href="https://wa.me/919305178105" target="_blank" style="color:var(--gold-soft); text-decoration:underline;">WhatsApp</a>)</span>
+    <span>·</span>
+    <a href="https://wa.me/919305178105?text=Hi%20Anuj%2C%20I%20have%20a%20query%20regarding%20Tap2Review" target="_blank" style="display:inline-flex; align-items:center; gap:4px; background:#25D366; color:#000; font-weight:700; font-size:12px; padding:3px 10px; border-radius:12px; text-decoration:none;">
+      💬 Chat on WhatsApp
+    </a>
   </div>
 </footer>` : ''}
 ${REVEAL_SCRIPT}
