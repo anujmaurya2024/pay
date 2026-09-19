@@ -11,6 +11,11 @@ const { WHATSAPP_NUMBER } = require('./config');
 const { hashPassword, verifyPassword, requireCustomerAuth } = require('./auth');
 
 const app = express();
+const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+
+// Trust reverse proxy (e.g. Cloudflare, Render) for HTTPS detection and secure cookies
+app.set('trust proxy', 1);
+
 app.use(express.static('public'));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
@@ -23,8 +28,30 @@ app.use(session({
     ttl: 60 * 60 * 24 * 7, // 7 days in seconds
     autoRemove: 'native',
   }),
-  cookie: { httpOnly: true, maxAge: 1000 * 60 * 60 * 24 * 7 }, // 7 days
+  cookie: {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'lax',
+    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+  },
 }));
+
+// In-memory rate limiting for login attempts
+const loginAttempts = new Map();
+function loginRateLimiter(req, res, next) {
+  const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+  if (record && record.resetAt > now) {
+    if (record.count >= 10) {
+      return res.redirect('/login?error=' + encodeURIComponent('Too many login attempts. Please wait 15 minutes.'));
+    }
+    record.count++;
+  } else {
+    loginAttempts.set(ip, { count: 1, resetAt: now + 15 * 60 * 1000 });
+  }
+  next();
+}
 
 const PORT = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
@@ -55,6 +82,17 @@ function isValidHttpUrl(str) {
     return false;
   }
 }
+
+// ================= HEALTH CHECK =================
+app.get('/health', (req, res) => {
+  const dbStatus = db.isConnected() ? 'connected' : 'disconnected';
+  res.status(200).json({
+    status: 'ok',
+    uptime: Math.floor(process.uptime()),
+    database: dbStatus,
+    timestamp: new Date().toISOString()
+  });
+});
 
 // ================= PUBLIC LANDING PAGE =================
 app.get('/', async (req, res) => {
@@ -281,14 +319,31 @@ app.get('/login', (req, res) => {
   res.send(page({ title: 'Login — Tap2Review', body }));
 });
 
-app.post('/login', async (req, res) => {
-  const { email, password } = req.body;
-  const customer = await db.getCustomerByEmail(email || '');
-  if (!customer || !(await verifyPassword(password || '', customer.passwordHash))) {
-    return res.redirect('/login?error=' + encodeURIComponent('Invalid email or password.'));
+app.post('/login', loginRateLimiter, async (req, res) => {
+  try {
+    const email = (req.body.email || '').trim().toLowerCase();
+    const password = req.body.password || '';
+    if (!email || !password) {
+      return res.redirect('/login?error=' + encodeURIComponent('Please enter both email and password.'));
+    }
+    const customer = await db.getCustomerByEmail(email);
+    if (!customer || !customer.passwordHash || !(await verifyPassword(password, customer.passwordHash))) {
+      return res.redirect('/login?error=' + encodeURIComponent('Invalid email or password.'));
+    }
+    // Clear failed login attempts on successful authentication
+    const ip = req.ip || req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+    loginAttempts.delete(ip);
+
+    req.session.customerId = customer.id;
+    // Explicitly persist session to MongoStore before sending 302 redirect
+    req.session.save((err) => {
+      if (err) console.error('Session save error:', err);
+      res.redirect('/dashboard');
+    });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.redirect('/login?error=' + encodeURIComponent('Something went wrong. Please try again.'));
   }
-  req.session.customerId = customer.id;
-  res.redirect('/dashboard');
 });
 
 app.post('/logout', (req, res) => {
@@ -355,6 +410,8 @@ async function fulfillPaidOrder(order) {
   let customer = await db.getCustomerByEmail(email);
   if (!customer) {
     customer = await db.createCustomer({ name, email, passwordHash });
+  } else if (!customer.passwordHash || customer.passwordHash.length < 20) {
+    customer = await db.updateCustomerPassword(customer.id, passwordHash);
   }
   if (!order.customerId) {
     await db.setOrderCustomerId(order.id, customer.id);
@@ -377,42 +434,53 @@ async function fulfillPaidOrder(order) {
 // The customer gets none of that until Admin confirms payment (see the
 // /admin/api/order/:orderId/confirm-payment route further down).
 app.post('/api/purchase-request', async (req, res) => {
-  const { plan, name, businessName, email, phone, password } = req.body;
-  const planDef = payments.getPlan(plan);
-  if (!planDef || !name || !businessName || !email || !phone || !password) {
-    return res.status(400).send('Missing or invalid details. <a href="/pricing">Go back</a>.');
+  try {
+    const { plan, name, businessName, email, phone, password } = req.body;
+    const planDef = payments.getPlan(plan);
+    if (!planDef || !name || !businessName || !email || !phone || !password) {
+      return res.status(400).send('Missing or invalid details. <a href="/pricing">Go back</a>.');
+    }
+
+    const passwordHash = await hashPassword(password);
+    const order = await db.createOrder({
+      quantity: planDef.quantity,
+      amount: planDef.amount,
+      plan,
+      paymentStatus: 'PENDING_PAYMENT',
+      checkout: {
+        name: String(name).trim(),
+        email: String(email).trim().toLowerCase(),
+        businessName: String(businessName).trim(),
+        phone: String(phone).trim(),
+        passwordHash
+      },
+    });
+
+    const message =
+      `Hi Tap2Review! I'd like to purchase ${planDef.quantity} cards (₹${planDef.amount.toLocaleString('en-IN')}).\n\n` +
+      `Order ID: ${order.id}\n` +
+      `Name: ${name}\n` +
+      `Business: ${businessName}\n` +
+      `Email: ${email}\n` +
+      `Phone: ${phone}\n` +
+      `Bundle: ${planDef.quantity} Cards — ₹${planDef.amount.toLocaleString('en-IN')}`;
+    const waLink = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
+
+    const body = `
+    <div class="hero" style="padding-top:80px; text-align:center;">
+      <div class="eyebrow">Request Received</div>
+      <h1 style="font-size:28px;">One more step — complete payment on WhatsApp</h1>
+      <p class="lead">Order <code>${escapeHtml(order.id)}</code> for ${planDef.quantity} cards (₹${planDef.amount.toLocaleString('en-IN')}) has been recorded as <b>Pending Payment</b>.</p>
+      <a href="${waLink}" class="btn-primary" target="_blank">Purchase via WhatsApp</a>
+      <p style="color:var(--gray); font-size:13px; margin-top:24px; max-width:440px; margin-left:auto; margin-right:auto;">
+        Your cards and dashboard access will be created only after we confirm your payment. This is usually quick — we'll reach out on WhatsApp once it's done.
+      </p>
+    </div>`;
+    res.send(page({ title: 'Complete Payment on WhatsApp — Tap2Review', body }));
+  } catch (err) {
+    console.error('Purchase request error:', err);
+    res.status(500).send('An unexpected error occurred while processing your request. Please try again or contact us directly on WhatsApp.');
   }
-
-  const passwordHash = await hashPassword(password);
-  const order = await db.createOrder({
-    quantity: planDef.quantity,
-    amount: planDef.amount,
-    plan,
-    paymentStatus: 'PENDING_PAYMENT',
-    checkout: { name, email, businessName, phone, passwordHash },
-  });
-
-  const message =
-    `Hi Tap2Review! I'd like to purchase ${planDef.quantity} cards (₹${planDef.amount.toLocaleString('en-IN')}).\n\n` +
-    `Order ID: ${order.id}\n` +
-    `Name: ${name}\n` +
-    `Business: ${businessName}\n` +
-    `Email: ${email}\n` +
-    `Phone: ${phone}\n` +
-    `Bundle: ${planDef.quantity} Cards — ₹${planDef.amount.toLocaleString('en-IN')}`;
-  const waLink = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
-
-  const body = `
-  <div class="hero" style="padding-top:80px; text-align:center;">
-    <div class="eyebrow">Request Received</div>
-    <h1 style="font-size:28px;">One more step — complete payment on WhatsApp</h1>
-    <p class="lead">Order <code>${escapeHtml(order.id)}</code> for ${planDef.quantity} cards (₹${planDef.amount.toLocaleString('en-IN')}) has been recorded as <b>Pending Payment</b>.</p>
-    <a href="${waLink}" class="btn-primary" target="_blank">Purchase via WhatsApp</a>
-    <p style="color:var(--gray); font-size:13px; margin-top:24px; max-width:440px; margin-left:auto; margin-right:auto;">
-      Your cards and dashboard access will be created only after we confirm your payment. This is usually quick — we'll reach out on WhatsApp once it's done.
-    </p>
-  </div>`;
-  res.send(page({ title: 'Complete Payment on WhatsApp — Tap2Review', body }));
 });
 
 // ---- Legacy Paytm flow: intact but disabled by default ----
@@ -1053,9 +1121,9 @@ app.get('/admin', requireAuth, async (req, res) => {
     <div class="panel">
       <h2>Customers (${customers.length})</h2>
       <table>
-        <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Orders</th><th>Cards</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Orders</th><th>Cards</th><th>Actions</th></tr></thead>
         <tbody>
-          ${customerRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No customers yet.</td></tr>'}
+          ${customerRows.join('') || '<tr><td colspan="6" style="color:var(--gray);">No customers yet.</td></tr>'}
         </tbody>
       </table>
     </div>

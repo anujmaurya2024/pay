@@ -10,6 +10,10 @@ async function connect() {
   console.log('✅ MongoDB connected');
 }
 
+function isConnected() {
+  return mongoose.connection.readyState === 1;
+}
+
 // ─── Schemas ─────────────────────────────────────────────────────────────────
 // We keep the custom `id` string fields (e.g. "biz_xxx", "card_xxx") as the
 // logical application IDs. Mongoose's _id is unused for lookup — all queries
@@ -235,7 +239,11 @@ function isGoogleReviewDestination(url) {
 
 // ─── CUSTOMERS ───────────────────────────────────────────────────────────────
 async function getCustomerByEmail(email) {
-  return Customer.findOne({ email: { $regex: new RegExp(`^${String(email).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') } }).lean();
+  if (!email) return null;
+  const cleaned = String(email).trim();
+  return Customer.findOne({
+    email: { $regex: new RegExp(`^${cleaned.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i') }
+  }).lean();
 }
 async function getCustomerById(id) {
   if (!id) return null;
@@ -244,8 +252,8 @@ async function getCustomerById(id) {
 async function createCustomer({ name, email, passwordHash }) {
   const customer = await Customer.create({
     id: 'cust_' + nanoid(10),
-    name,
-    email,
+    name: String(name || '').trim(),
+    email: String(email || '').trim().toLowerCase(),
     passwordHash,
     createdAt: new Date().toISOString(),
   });
@@ -311,7 +319,7 @@ async function getOrdersByCustomer(customerId) {
 }
 
 module.exports = {
-  connect,
+  connect, isConnected,
   getBusinesses, getBusiness, createBusiness, updateBusinessProfile, getBusinessesByOwner,
   getCards, getCardByPublicId, createCard, setCardStatus, setCardDestination,
   setPrimaryCard, getPrimaryCard, getCardsByCustomer, setCardBusiness, setCardReviewSuggestions,
