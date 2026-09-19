@@ -1071,28 +1071,6 @@ app.get('/admin', requireAuth, async (req, res) => {
       return `<option value="${c.publicCardId}">${c.publicCardId} — ${escapeHtml(bizName)}</option>`;
     }));
 
-    // Review suggestions table rows
-    const allCardsForSuggestions = await db.getCards(); // include customer cards for suggestions view
-    const suggRows = await Promise.all(allCardsForSuggestions.map(async c => {
-      const dest = await db.resolveDestination(c);
-      const bizName = await db.resolveCardBusinessName(c);
-      const isGoogle = db.isGoogleReviewDestination(dest);
-      const on = !!(c.reviewSuggestions && c.reviewSuggestions.enabled);
-      const prompts = db.getCardReviewPrompts(c);
-      return `<tr>
-              <td><code>${c.publicCardId}</code></td>
-              <td>${escapeHtml(bizName)}</td>
-              <td style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(dest || '')}">${escapeHtml(dest || '—')}</td>
-              <td>${isGoogle ? (on ? '<span class="badge active">ON</span>' : '<span class="badge inactive">OFF</span>') : '<span style="color:#666;">N/A (non-Google)</span>'}</td>
-              <td>
-                <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                  ${isGoogle ? `<button class="btn-small" onclick="toggleAdminSuggestions('${c.publicCardId}', ${!on})">${on ? 'Turn Off' : 'Turn On'}</button>` : ''}
-                  ${isGoogle ? `<button class="btn-small edit-admin-prompts-btn" data-card-id="${escapeHtml(c.publicCardId)}" data-prompts="${escapeHtml(JSON.stringify(prompts))}">Edit 5 Prompts</button>` : ''}
-                </div>
-              </td>
-            </tr>`;
-    }));
-
     const customers = await db.getCustomers();
     const customerRows = await Promise.all(customers.map(async cu => {
       const custOrders = await db.getOrdersByCustomer(cu.id);
@@ -1192,24 +1170,6 @@ app.get('/admin', requireAuth, async (req, res) => {
     </div>
 
     <div class="panel">
-      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
-        <h2 style="margin:0;">Review Suggestions (All Cards)</h2>
-        <button class="btn-small" id="toggleSuggestionsBtn" onclick="toggleSuggestionsSection()" type="button">Show Section</button>
-      </div>
-      <div id="suggestionsSectionBody" style="display:none; margin-top:16px;">
-        <p style="color:var(--gray); font-size:13px; margin-top:0;">
-          Admin-only. Applies to every card — including customer-purchased ones. Only relevant when a card's destination is a Google Review URL; non-Google cards always redirect directly regardless of this setting.
-        </p>
-        <table>
-          <thead><tr><th>Card ID</th><th>Business Name</th><th>Destination</th><th>Suggestions</th><th>Actions</th></tr></thead>
-          <tbody>
-            ${suggRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="panel">
       <h2>Customers (${customers.length})</h2>
       <table>
         <thead><tr><th>Name</th><th>Email</th><th>Joined</th><th>Orders</th><th>Cards</th><th>Actions</th></tr></thead>
@@ -1230,22 +1190,6 @@ app.get('/admin', requireAuth, async (req, res) => {
     </div>
   </div>
   <script src="/js/admin.js"></script>
-
-  <div id="adminPromptsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; align-items:center; justify-content:center;">
-    <div class="panel" style="max-width:440px; width:90%; margin:0;">
-      <h2>Review Suggestions — 5 Prompts <span id="adminPromptsCardIdLabel" style="color:var(--gold);"></span></h2>
-      <p style="color:var(--gray); font-size:12px; margin-top:-6px;">All 5 are required. Customers pick one, copy it, then continue to Google themselves — nothing is ever posted automatically.</p>
-      <label>Prompt 1</label><input id="adminPrompt0" maxlength="150"/>
-      <label>Prompt 2</label><input id="adminPrompt1" maxlength="150"/>
-      <label>Prompt 3</label><input id="adminPrompt2" maxlength="150"/>
-      <label>Prompt 4</label><input id="adminPrompt3" maxlength="150"/>
-      <label>Prompt 5</label><input id="adminPrompt4" maxlength="150"/>
-      <div style="display:flex; gap:8px; margin-top:6px;">
-        <button class="btn-small" style="flex:1;" onclick="saveAdminPrompts()">Save 5 Prompts</button>
-        <button class="btn-small" style="flex:1; background:transparent; border:1px solid var(--line); color:var(--white);" onclick="closeAdminPromptsModal()">Cancel</button>
-      </div>
-    </div>
-  </div>
   `;
     res.send(page({ title: 'Admin — Tap2Review', body }));
   } catch (err) {

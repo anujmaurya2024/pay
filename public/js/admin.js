@@ -59,46 +59,7 @@ function jumpToCard() {
   if (sel.value) window.location.href = "/card/" + sel.value;
 }
 
-async function toggleAdminSuggestions(cardId, enabled) {
-  const res = await fetch("/admin/api/card/" + encodeURIComponent(cardId) + "/suggestions", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled })
-  });
-  if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || "Could not update."); return; }
-  location.reload();
-}
 
-let adminPromptsCardId = null;
-
-document.addEventListener("click", function (e) {
-  const btn = e.target.closest(".edit-admin-prompts-btn");
-  if (!btn) return;
-  adminPromptsCardId = btn.dataset.cardId;
-  document.getElementById("adminPromptsCardIdLabel").textContent = adminPromptsCardId;
-  let prompts = [];
-  try { prompts = JSON.parse(btn.dataset.prompts || "[]"); } catch (err) {}
-  for (let i = 0; i < 5; i++) {
-    document.getElementById("adminPrompt" + i).value = prompts[i] || "";
-  }
-  document.getElementById("adminPromptsModal").style.display = "flex";
-});
-
-function closeAdminPromptsModal() {
-  document.getElementById("adminPromptsModal").style.display = "none";
-  adminPromptsCardId = null;
-}
-
-async function saveAdminPrompts() {
-  const prompts = [];
-  for (let i = 0; i < 5; i++) {
-    prompts.push(document.getElementById("adminPrompt" + i).value.trim());
-  }
-  if (prompts.some(p => !p)) { alert("All 5 prompts are required."); return; }
-  const res = await fetch("/admin/api/card/" + encodeURIComponent(adminPromptsCardId) + "/prompts", {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompts })
-  });
-  if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || "Could not save prompts."); return; }
-  location.reload();
-}
 
 async function adminResetPassword(customerId, email) {
   const newPassword = prompt("Set a new password for " + email + " (min 6 characters):");
@@ -114,22 +75,3 @@ async function adminResetPassword(customerId, email) {
   alert("Password reset successfully for " + data.email + ". They can now log in with the new password.");
 }
 
-function toggleSuggestionsSection() {
-  const body = document.getElementById("suggestionsSectionBody");
-  const btn = document.getElementById("toggleSuggestionsBtn");
-  if (!body) return;
-  const isHidden = body.style.display === "none";
-  body.style.display = isHidden ? "block" : "none";
-  if (btn) btn.textContent = isHidden ? "Hide Section" : "Show Section";
-  localStorage.setItem("showReviewSuggestions", isHidden ? "true" : "false");
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-  const show = localStorage.getItem("showReviewSuggestions") === "true";
-  const body = document.getElementById("suggestionsSectionBody");
-  const btn = document.getElementById("toggleSuggestionsBtn");
-  if (body && btn && show) {
-    body.style.display = "block";
-    btn.textContent = "Hide Section";
-  }
-});

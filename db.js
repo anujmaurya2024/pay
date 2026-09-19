@@ -1,6 +1,15 @@
 const mongoose = require('mongoose');
 const { nanoid } = require('nanoid');
 
+const dns = require('dns');
+
+// On Windows or certain local ISPs, Node's c-ares DNS resolver fails on MongoDB Atlas SRV records.
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (e) {
+  // Ignore in environments where setServers is restricted
+}
+
 // ─── Connect ────────────────────────────────────────────────────────────────
 // Called once from server.js before app.listen().
 async function connect() {
