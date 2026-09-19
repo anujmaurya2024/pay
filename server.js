@@ -10,15 +10,29 @@ const paytm = require('./paytm');
 const { WHATSAPP_NUMBER } = require('./config');
 const { hashPassword, verifyPassword, requireCustomerAuth } = require('./auth');
 
-const app = express();
-const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RENDER;
+const path = require('path');
 
-// Trust reverse proxy (e.g. Cloudflare, Render) for HTTPS detection and secure cookies
+const app = express();
+const isProduction = process.env.NODE_ENV === 'production' || !!process.env.RENDER || !!process.env.VERCEL;
+
+// Trust reverse proxy (e.g. Cloudflare, Render, Vercel) for HTTPS detection and secure cookies
 app.set('trust proxy', 1);
 
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
+
+// Ensure MongoDB is connected before handling requests (required for Vercel serverless functions)
+app.use(async (req, res, next) => {
+  if (!db.isConnected()) {
+    try {
+      await db.connect();
+    } catch (err) {
+      console.error('MongoDB serverless connection error:', err.message);
+    }
+  }
+  next();
+});
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-only-secret-change-in-production',
   resave: false,
@@ -1370,11 +1384,18 @@ function escapeHtml(str) {
 }
 
 // ================= START (connect to MongoDB first, then listen) =================
-db.connect().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Tap2Review running at ${BASE_URL}`);
+// On standard server / local dev: connect and listen.
+// On Vercel: Vercel executes the exported Express app as a serverless handler.
+if (!process.env.VERCEL) {
+  db.connect().then(() => {
+    app.listen(PORT, () => {
+      console.log(`Tap2Review running at ${BASE_URL}`);
+    });
+  }).catch(err => {
+    console.error('❌ Failed to connect to MongoDB:', err.message);
+    process.exit(1);
   });
-}).catch(err => {
-  console.error('❌ Failed to connect to MongoDB:', err.message);
-  process.exit(1);
-});
+}
+
+module.exports = app;
+
