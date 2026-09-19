@@ -254,6 +254,9 @@ async function createCustomer({ name, email, passwordHash }) {
 async function getCustomers() {
   return Customer.find().lean();
 }
+async function updateCustomerPassword(id, passwordHash) {
+  return Customer.findOneAndUpdate({ id }, { passwordHash }, { new: true }).lean();
+}
 
 // ─── ORDERS ──────────────────────────────────────────────────────────────────
 // createOrder supports a PENDING state for real payment gateways: the
@@ -315,7 +318,7 @@ module.exports = {
   setCardReviewPrompts, getCardReviewPrompts, DEFAULT_REVIEW_PROMPTS,
   setCardBusinessName, setCardDetails, resolveCardBusinessName,
   resolveDestination, isGoogleReviewDestination,
-  getCustomerByEmail, getCustomerById, createCustomer, getCustomers,
+  getCustomerByEmail, getCustomerById, createCustomer, getCustomers, updateCustomerPassword,
   createOrder, getOrders, getOrdersByCustomer, getOrderById,
   markOrderPaid, markOrderFailed, markOrderCardsGenerated, setOrderCustomerId,
 };

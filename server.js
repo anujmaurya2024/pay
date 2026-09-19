@@ -949,6 +949,7 @@ app.get('/admin', requireAuth, async (req, res) => {
               <td>${new Date(cu.createdAt).toLocaleDateString()}</td>
               <td>${custOrders.length}</td>
               <td>${custCards.length}</td>
+              <td><button class="btn-small" onclick="adminResetPassword('${escapeHtml(cu.id)}', '${escapeHtml(cu.email)}')">Reset Password</button></td>
             </tr>`;
     }));
 
@@ -1210,6 +1211,19 @@ app.post('/admin/api/card/destination', requireAuth, async (req, res) => {
   const card = await db.setCardDestination(cardId, destinationUrl);
   if (!card) return res.status(404).json({ error: 'Not found' });
   res.json(card);
+});
+
+// ─── Admin: Reset Customer Password ──────────────────────────────────────────
+app.post('/admin/api/customer/:customerId/reset-password', requireAuth, async (req, res) => {
+  const { customerId } = req.params;
+  const { newPassword } = req.body;
+  if (!newPassword || newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters.' });
+  }
+  const passwordHash = await hashPassword(newPassword);
+  const customer = await db.updateCustomerPassword(customerId, passwordHash);
+  if (!customer) return res.status(404).json({ error: 'Customer not found.' });
+  res.json({ ok: true, email: customer.email });
 });
 
 function escapeHtml(str) {

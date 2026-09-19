@@ -1,5 +1,5 @@
-// ============================================================
-// Tap2Review — Admin Panel JS
+ï»¿// ============================================================
+// Tap2Review ï¿½ Admin Panel JS
 // Extracted from server.js /admin route inline script
 // ============================================================
 
@@ -7,7 +7,7 @@ async function confirmPayment(orderId) {
   if (!confirm("Confirm payment received for order " + orderId + "? This will create the customer account, business, and cards immediately.")) return;
   const res = await fetch("/admin/api/order/" + encodeURIComponent(orderId) + "/confirm-payment", { method: "POST" });
   if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || "Could not confirm payment."); return; }
-  alert("Payment confirmed — cards generated and customer account is now active.");
+  alert("Payment confirmed ï¿½ cards generated and customer account is now active.");
   location.reload();
 }
 
@@ -46,7 +46,7 @@ async function updateCardDestination(e) {
   e.preventDefault();
   const f = new FormData(e.target);
   const res = await fetch("/admin/api/card/destination", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(Object.fromEntries(f)) });
-  if (!res.ok) { alert("Invalid URL — please enter a valid http/https link."); return; }
+  if (!res.ok) { alert("Invalid URL ï¿½ please enter a valid http/https link."); return; }
   location.reload();
 }
 
@@ -98,4 +98,18 @@ async function saveAdminPrompts() {
   });
   if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || "Could not save prompts."); return; }
   location.reload();
+}
+
+async function adminResetPassword(customerId, email) {
+  const newPassword = prompt("Set a new password for " + email + " (min 6 characters):");
+  if (!newPassword) return;
+  if (newPassword.length < 6) { alert("Password must be at least 6 characters."); return; }
+  const res = await fetch("/admin/api/customer/" + encodeURIComponent(customerId) + "/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ newPassword }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { alert(data.error || "Could not reset password."); return; }
+  alert("Password reset successfully for " + data.email + ". They can now log in with the new password.");
 }
