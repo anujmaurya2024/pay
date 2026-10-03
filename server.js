@@ -277,7 +277,7 @@ app.get('/faq', (req, res) => {
     ['Do customers need to download an app?', 'No. Tap or scan opens the destination directly in their phone\'s browser.'],
     ['Can I change where a card points later?', 'Yes — anytime from your dashboard. The physical card, QR, and NFC URL never change.'],
     ['What destinations are supported?', 'Google Reviews, Instagram, WhatsApp, your website, or any valid HTTPS link.'],
-    ['What is Review Suggestions?', 'Review Suggestions is an optional, admin-managed feature for Google Review cards that shows the customer a few custom prompts to copy before continuing to Google. It never posts anything automatically.'],
+    ['What is Review Suggestions?', 'Review Suggestions presents 10 quick predefined 5-star reviews when a customer taps or scans your card to review. They can select any review with one tap, copy it to clipboard, and paste it straight onto your Google Reviews page. It never posts anything automatically.'],
     ['Can I deactivate a card?', 'Yes, instantly, from your dashboard — deactivated cards stop redirecting immediately.'],
   ];
   const body = `
@@ -938,7 +938,7 @@ app.get('/api/qr/demo', async (req, res) => {
   }
 });
 app.get('/demo/redirect', (req, res) => {
-  res.redirect(302, DEMO_DESTINATION_URL);
+  return renderReviewSuggestions(res, { businessName: 'Demo Business', reviewSuggestions: { enabled: true } }, DEMO_DESTINATION_URL);
 });
 
 app.get('/api/qr/:cardId', async (req, res) => {
@@ -969,11 +969,12 @@ app.get('/r/:cardId', async (req, res) => {
     const destination = await db.resolveDestination(card);
     if (!destination || !isValidHttpUrl(destination)) return renderNotFound(res, 'This card is not configured yet.');
 
-    // Review Suggestions is OPTIONAL, admin-controlled, and only applies to Google Review destinations.
-    // Every other destination (Instagram, WhatsApp, website, etc.) redirects directly — no interstitial, ever.
-    const suggestionsOn = card.reviewSuggestions && card.reviewSuggestions.enabled;
+    // When the card points to Google Review, show 10 predefined reviews to help customers
+    // quickly copy and post their 5-star review. Non-review destinations redirect directly.
+    const suggestionsOn = card.reviewSuggestions ? card.reviewSuggestions.enabled !== false : true;
     if (suggestionsOn && db.isGoogleReviewDestination(destination)) {
-      return renderReviewSuggestions(res, card, destination);
+      const bizName = await db.resolveCardBusinessName(card);
+      return renderReviewSuggestions(res, card, destination, bizName);
     }
 
     return res.redirect(302, destination);
@@ -983,45 +984,248 @@ app.get('/r/:cardId', async (req, res) => {
   }
 });
 
-// Only shown when Review Suggestions is explicitly ON (admin-controlled) for a Google Review card,
-// using that card's own custom prompts (falls back to universal defaults if
-// the owner hasn't set any yet). This is the ONLY case with an interstitial
-// page — the customer stays in control and must click through to Google
-// themselves; nothing is ever auto-submitted on their behalf.
-function renderReviewSuggestions(res, card, destination) {
+// Shown when user wants to review (destination is Google Review or Demo),
+// presenting 10 predefined reviews to choose from with one-click copy.
+function renderReviewSuggestions(res, card, destination, bizName = '') {
   const prompts = db.getCardReviewPrompts(card);
+  const displayName = bizName || (card && card.businessName ? card.businessName : '');
+
   const options = prompts.map((text, i) =>
-    `<label class="suggestion-option">
-      <input type="radio" name="suggestion" value="${i}" ${i === 0 ? 'checked' : ''}/>
-      <span>${escapeHtml(text)}</span>
-    </label>`
+    `<div class="suggestion-card ${i === 0 ? 'selected' : ''}" onclick="selectSuggestion(${i})">
+      <div class="suggestion-card-header">
+        <label class="suggestion-radio-wrap">
+          <input type="radio" name="suggestion" value="${i}" ${i === 0 ? 'checked' : ''} onchange="selectSuggestion(${i})"/>
+          <span class="suggestion-num">Review #${i + 1}</span>
+        </label>
+        <div class="suggestion-stars">★★★★★</div>
+      </div>
+      <p class="suggestion-text" id="promptText${i}">${escapeHtml(text)}</p>
+      <div class="suggestion-card-actions">
+        <button type="button" class="btn-copy-chip" onclick="copySingle(event, ${i})">
+          <span class="copy-icon">📋</span> <span class="copy-label">Copy this review</span>
+        </button>
+      </div>
+    </div>`
   ).join('');
 
   const body = `
-  <div class="hero" style="padding-top:60px;">
-    <div class="eyebrow">Review Suggestions</div>
-    <h1 style="font-size:28px;">How was your experience?</h1>
-    <p class="lead" style="font-size:15px;">Pick a line you like, then continue to Google to post it — you're always in control of what gets submitted.</p>
+  <div class="hero" style="padding-top:40px; padding-bottom:60px;">
+    <div class="eyebrow">⭐ 5-Star Review Suggestions</div>
+    <h1 style="font-size:30px; margin-bottom:10px;">How was your experience?</h1>
+    <p class="lead" style="font-size:15px; max-width:560px; margin:0 auto 24px;">
+      ${displayName ? `Help support <strong>${escapeHtml(displayName)}</strong> on Google! ` : ''}Pick one of the <strong>10 predefined reviews</strong> below, copy it with one tap, and paste it directly on Google Reviews.
+    </p>
 
-    <div class="panel" style="max-width:440px; margin:30px auto 0; text-align:left;">
-      <form id="suggForm">${options}</form>
-      <button class="btn-primary" style="width:100%; margin-top:18px; border:none; cursor:pointer;" onclick="copyAndContinue()">Copy &amp; Continue to Google</button>
-      <a href="${escapeHtml(destination)}" style="display:block; text-align:center; margin-top:14px; color:#888; font-size:13px;">Skip / Continue without suggestion →</a>
+    <div class="panel review-container" style="max-width:540px; margin:0 auto; text-align:left; border:1px solid var(--line); border-radius:16px; padding:24px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid var(--line);">
+        <span style="font-size:13px; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:1px;">
+          ✨ 10 Predefined Reviews
+        </span>
+        <span style="font-size:12px; color:var(--gray);">Tap any to select</span>
+      </div>
+
+      <form id="suggForm" onsubmit="event.preventDefault(); copyAndContinue();">
+        <div class="suggestions-list">
+          ${options}
+        </div>
+
+        <div style="margin-top:24px; position:sticky; bottom:20px; background:linear-gradient(180deg, rgba(20,20,22,0.92), rgba(20,20,22,1)); padding:16px 0 0; z-index:10; border-top:1px solid var(--line);">
+          <button id="mainCopyBtn" type="button" class="btn-primary" style="width:100%; font-size:16px; padding:15px 24px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="copyAndContinue()">
+            <span>⭐ Copy Selected &amp; Continue to Google</span>
+          </button>
+          <a href="${escapeHtml(destination)}" class="skip-link" style="display:block; text-align:center; margin-top:14px; color:var(--gray); font-size:13px; text-decoration:none; transition:color .2s;">
+            Skip / Write your own review on Google →
+          </a>
+        </div>
+      </form>
     </div>
   </div>
+
+  <div id="copyToast" class="copy-toast">✓ Review copied to clipboard! Opening Google...</div>
+
   <style>
-    .suggestion-option{display:flex; gap:10px; align-items:flex-start; padding:12px; border:1px solid var(--line); border-radius:10px; margin-bottom:10px; cursor:pointer; font-size:14px;}
-    .suggestion-option:hover{border-color:var(--gold);}
+    .review-container{box-shadow:0 20px 50px rgba(0,0,0,0.5);}
+    .suggestions-list{display:flex; flex-direction:column; gap:12px; max-height:550px; overflow-y:auto; padding-right:4px;}
+    .suggestions-list::-webkit-scrollbar{width:6px;}
+    .suggestions-list::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+    .suggestions-list::-webkit-scrollbar-thumb:hover{background:var(--gold-dim);}
+    .suggestion-card{
+      border:1px solid var(--line);
+      border-radius:12px;
+      padding:14px 16px;
+      background:rgba(255,255,255,0.02);
+      transition:all .2s ease;
+      cursor:pointer;
+      position:relative;
+    }
+    .suggestion-card:hover{
+      border-color:var(--gold-dim);
+      background:rgba(212,175,55,0.03);
+      transform:translateY(-1px);
+    }
+    .suggestion-card.selected{
+      border-color:var(--gold);
+      background:rgba(212,175,55,0.08);
+      box-shadow:0 0 16px rgba(212,175,55,0.15);
+    }
+    .suggestion-card-header{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      margin-bottom:8px;
+    }
+    .suggestion-radio-wrap{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      cursor:pointer;
+    }
+    .suggestion-radio-wrap input[type="radio"]{
+      accent-color:var(--gold);
+      width:16px;
+      height:16px;
+      cursor:pointer;
+      margin:0;
+    }
+    .suggestion-num{
+      font-size:12px;
+      font-weight:700;
+      color:var(--gold-soft);
+      letter-spacing:0.5px;
+    }
+    .suggestion-stars{
+      color:#fbc02d;
+      font-size:13px;
+      letter-spacing:2px;
+    }
+    .suggestion-text{
+      color:var(--white);
+      font-size:14px;
+      line-height:1.55;
+      margin:0 0 10px;
+    }
+    .suggestion-card-actions{
+      display:flex;
+      justify-content:flex-end;
+    }
+    .btn-copy-chip{
+      background:transparent;
+      border:1px solid var(--line);
+      color:var(--gray);
+      font-size:11px;
+      padding:4px 10px;
+      border-radius:6px;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      gap:5px;
+      transition:all .15s ease;
+    }
+    .btn-copy-chip:hover{
+      border-color:var(--gold);
+      color:var(--gold-soft);
+      background:rgba(212,175,55,0.05);
+    }
+    .btn-copy-chip.copied{
+      border-color:#4caf50;
+      color:#4caf50;
+    }
+    .skip-link:hover{
+      color:var(--white);
+    }
+    .copy-toast{
+      position:fixed;
+      bottom:24px;
+      left:50%;
+      transform:translateX(-50%) translateY(100px);
+      background:#1a1a1e;
+      border:1px solid var(--gold);
+      color:var(--white);
+      padding:12px 24px;
+      border-radius:30px;
+      font-size:14px;
+      font-weight:600;
+      box-shadow:0 10px 30px rgba(0,0,0,0.6);
+      z-index:9999;
+      opacity:0;
+      transition:transform .3s ease, opacity .3s ease;
+      pointer-events:none;
+    }
+    .copy-toast.show{
+      transform:translateX(-50%) translateY(0);
+      opacity:1;
+    }
   </style>
+
   <script>
-    function copyAndContinue(){
-      const val = document.querySelector('input[name="suggestion"]:checked').nextElementSibling.textContent;
-      navigator.clipboard.writeText(val).then(function(){
-        window.location.href = ${JSON.stringify(destination)};
-      }, function(){
-        // Clipboard can fail (e.g. no HTTPS in dev) — continue anyway, text is on screen to copy manually.
-        window.location.href = ${JSON.stringify(destination)};
+    const destinationUrl = ${JSON.stringify(destination)};
+
+    function selectSuggestion(index){
+      const cards = document.querySelectorAll('.suggestion-card');
+      cards.forEach((card, i) => {
+        const radio = card.querySelector('input[type="radio"]');
+        if (i === index) {
+          card.classList.add('selected');
+          if (radio) radio.checked = true;
+        } else {
+          card.classList.remove('selected');
+          if (radio) radio.checked = false;
+        }
       });
+    }
+
+    function showToast(text, doneCallback){
+      const toast = document.getElementById('copyToast');
+      if (toast) {
+        toast.textContent = text || '✓ Copied to clipboard! Opening Google...';
+        toast.classList.add('show');
+        setTimeout(() => {
+          if (doneCallback) doneCallback();
+        }, 600);
+      } else if (doneCallback) {
+        doneCallback();
+      }
+    }
+
+    function copySingle(e, index){
+      e.stopPropagation();
+      selectSuggestion(index);
+      const textElem = document.getElementById('promptText' + index);
+      const text = textElem ? textElem.textContent : '';
+      const chip = e.currentTarget;
+
+      function proceed(){
+        showToast('✓ Review copied! Opening Google...', () => {
+          window.location.href = destinationUrl;
+        });
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          chip.classList.add('copied');
+          chip.innerHTML = '<span>✓</span> <span>Copied!</span>';
+          proceed();
+        }).catch(proceed);
+      } else {
+        proceed();
+      }
+    }
+
+    function copyAndContinue(){
+      const checked = document.querySelector('input[name="suggestion"]:checked');
+      const val = checked ? checked.closest('.suggestion-card').querySelector('.suggestion-text').textContent : '';
+
+      function proceed(){
+        showToast('✓ Review copied! Opening Google...', () => {
+          window.location.href = destinationUrl;
+        });
+      }
+
+      if (navigator.clipboard && navigator.clipboard.writeText && val) {
+        navigator.clipboard.writeText(val).then(proceed).catch(proceed);
+      } else {
+        proceed();
+      }
     }
   </script>
   `;
@@ -1270,8 +1474,8 @@ app.post('/admin/api/card/:cardId/prompts', requireAuth, async (req, res) => {
     return res.status(400).json({ error: 'Review Suggestions only apply to Google Review destinations.' });
   }
   const prompts = Array.isArray(req.body.prompts) ? req.body.prompts.map(p => String(p).trim()).filter(Boolean) : [];
-  if (prompts.length !== 5) {
-    return res.status(400).json({ error: 'Exactly 5 prompts are required.' });
+  if (prompts.length < 1 || prompts.length > 10) {
+    return res.status(400).json({ error: 'Please provide between 1 and 10 prompts.' });
   }
   if (prompts.some(p => p.length > 150)) {
     return res.status(400).json({ error: 'Each prompt must be 150 characters or fewer.' });

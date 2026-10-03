@@ -46,7 +46,7 @@ const cardSchema = new mongoose.Schema({
   status:        { type: String, default: 'ACTIVE' },
   destinationUrl:{ type: String, default: null },
   reviewSuggestions: {
-    enabled: { type: Boolean, default: false },
+    enabled: { type: Boolean, default: true },
     prompts:  { type: [String], default: undefined },
   },
   primary:   { type: Boolean, default: false },
@@ -142,7 +142,7 @@ async function createCard({ businessId, customerId, orderId, businessName, desti
     businessName: businessName || null,
     status: 'ACTIVE',
     destinationUrl: destinationUrl || null,
-    reviewSuggestions: { enabled: false },
+    reviewSuggestions: { enabled: true },
     primary: isFirstCard,
     createdAt: new Date().toISOString(),
   });
@@ -196,19 +196,24 @@ async function setCardReviewPrompts(publicCardId, prompts) {
   ).lean();
 }
 const DEFAULT_REVIEW_PROMPTS = [
-  'Amazing service! Highly recommend.',
-  'Great experience, will definitely visit again.',
-  'Very friendly and professional staff.',
-  'Excellent quality and service.',
-  'Loved it — five stars!',
+  'Amazing service and wonderful experience! Highly recommend to everyone.',
+  'Great experience, friendly hospitality, and will definitely visit again.',
+  'Very polite, helpful, and professional staff. Truly impressed with the service!',
+  'Top-notch quality and prompt attention. Exceeded all my expectations!',
+  'Loved everything about this place — fantastic vibe and five-star service!',
+  'Quick, hassle-free, and super reliable. Keep up the phenomenal work!',
+  'One of the best experiences around. Truly worth every penny and five stars!',
+  'Warm hospitality, great ambiance, and excellent attention to detail.',
+  'Clean, welcoming atmosphere with a dedicated team that genuinely cares.',
+  'Absolutely fantastic! Smooth experience from start to finish. Highly satisfied!',
 ];
-// Returns this card's own custom prompts if it has exactly 5 valid ones,
-// otherwise falls back to the universal defaults.
+// Returns this card's own custom prompts if set,
+// otherwise falls back to the 10 universal predefined reviews.
 function getCardReviewPrompts(card) {
-  const prompts = card.reviewSuggestions && Array.isArray(card.reviewSuggestions.prompts)
+  const prompts = card && card.reviewSuggestions && Array.isArray(card.reviewSuggestions.prompts)
     ? card.reviewSuggestions.prompts.filter(p => typeof p === 'string' && p.trim())
     : [];
-  return prompts.length === 5 ? prompts : DEFAULT_REVIEW_PROMPTS;
+  return prompts.length > 0 ? prompts : DEFAULT_REVIEW_PROMPTS;
 }
 async function setPrimaryCard(publicCardId) {
   const target = await Card.findOne({ publicCardId }).lean();
@@ -243,7 +248,7 @@ async function resolveDestination(card) {
 }
 function isGoogleReviewDestination(url) {
   if (!url) return false;
-  return /google\.com|g\.page|goo\.gl\/maps/i.test(url);
+  return /google\.com|g\.page|goo\.gl|g\.co/i.test(url);
 }
 
 // ─── CUSTOMERS ───────────────────────────────────────────────────────────────
