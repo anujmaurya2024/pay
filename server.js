@@ -1253,6 +1253,8 @@ app.get('/admin', requireAuth, async (req, res) => {
       const redirectUrl = `${BASE_URL}/r/${c.publicCardId}`;
       const bizName = await db.resolveCardBusinessName(c);
       const dest = await db.resolveDestination(c);
+      const isGoogle = db.isGoogleReviewDestination(dest);
+      const prompts = db.getCardReviewPrompts(c);
       return `<tr>
       <td>${escapeHtml(bizName)}</td>
       <td><code>${c.publicCardId}</code></td>
@@ -1268,9 +1270,36 @@ app.get('/admin', requireAuth, async (req, res) => {
           <button class="btn-small" onclick="copyRedirectUrl('${redirectUrl}')">Copy URL</button>
           <button class="btn-small" onclick="toggleStatus('${c.publicCardId}','${c.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'}')">${c.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>
           ${!c.primary ? `<button class="btn-small" onclick="setPrimary('${c.publicCardId}')">Set Homepage</button>` : ''}
+          ${isGoogle ? `<button class="btn-small edit-admin-prompts-btn" data-card-id="${escapeHtml(c.publicCardId)}" data-business-name="${escapeHtml(bizName)}" data-prompts="${escapeHtml(JSON.stringify(prompts))}">Review Options</button>` : ''}
         </div>
       </td>
     </tr>`;
+    }));
+
+    // Review suggestions table rows (all cards, admin and customer-owned)
+    const suggRows = await Promise.all(allCards.map(async c => {
+      const dest = await db.resolveDestination(c);
+      const bizName = await db.resolveCardBusinessName(c);
+      const isGoogle = db.isGoogleReviewDestination(dest);
+      const on = c.reviewSuggestions ? c.reviewSuggestions.enabled !== false : true;
+      const prompts = db.getCardReviewPrompts(c);
+      const ownerLabel = c.customerId
+        ? '<span class="badge" style="background:rgba(100,180,255,.15); color:#6ab0ff;">Customer</span>'
+        : '<span class="badge" style="background:rgba(212,175,55,.15); color:var(--gold);">Admin</span>';
+      return `<tr>
+              <td><code>${c.publicCardId}</code></td>
+              <td>${escapeHtml(bizName)}</td>
+              <td>${ownerLabel}</td>
+              <td style="max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(dest || '')}">${escapeHtml(dest || '—')}</td>
+              <td>${isGoogle ? (on ? '<span class="badge active">ON</span>' : '<span class="badge inactive">OFF</span>') : '<span style="color:#666;">N/A (non-Google)</span>'}</td>
+              <td>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                  ${isGoogle ? `<button class="btn-small" onclick="toggleAdminSuggestions('${c.publicCardId}', ${!on})">${on ? 'Turn Off' : 'Turn On'}</button>` : ''}
+                  ${isGoogle ? `<button class="btn-small edit-admin-prompts-btn" data-card-id="${escapeHtml(c.publicCardId)}" data-business-name="${escapeHtml(bizName)}" data-prompts="${escapeHtml(JSON.stringify(prompts))}">Edit Reviews</button>` : ''}
+                  ${isGoogle ? `<a href="/r/${c.publicCardId}" target="_blank" class="btn-small" style="text-decoration:none; display:inline-block;">Test Review</a>` : ''}
+                </div>
+              </td>
+            </tr>`;
     }));
 
     const bizOptions = businesses.map(b => `<option value="${b.id}">${escapeHtml(b.name)}</option>`).join('');
@@ -1380,6 +1409,25 @@ app.get('/admin', requireAuth, async (req, res) => {
     </div>
 
     <div class="panel">
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h2 style="margin:0;">⭐ Review Suggestions (All Cards)</h2>
+          <p style="color:var(--gray); font-size:13px; margin:4px 0 0;">
+            Admin control for 5-star review suggestions across all cards (admin &amp; customer). When enabled on Google Review cards, visitors see 10 predefined reviews to copy before posting. Non-Google cards redirect directly without interstitial.
+          </p>
+        </div>
+      </div>
+      <div class="table-wrap" style="margin-top:16px;">
+        <table>
+          <thead><tr><th>Card ID</th><th>Business Name</th><th>Type</th><th>Destination</th><th>Review Suggestions</th><th>Actions</th></tr></thead>
+          <tbody>
+            ${suggRows.join('') || '<tr><td colspan="6" style="color:var(--gray);">No cards yet.</td></tr>'}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
       <h2>Customers (${customers.length})</h2>
       <div class="table-wrap">
         <table>
@@ -1400,6 +1448,34 @@ app.get('/admin', requireAuth, async (req, res) => {
             ${orderRows.join('') || '<tr><td colspan="9" style="color:var(--gray);">No orders yet.</td></tr>'}
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminPromptsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.75); z-index:100; align-items:center; justify-content:center; backdrop-filter:blur(4px); padding:20px;">
+    <div class="panel" style="max-width:540px; width:100%; max-height:88vh; overflow-y:auto; margin:0; box-shadow:0 25px 50px -12px rgba(0,0,0,.7);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+        <div>
+          <h2 style="margin:0 0 4px;">Review Suggestions</h2>
+          <span id="adminPromptsCardIdLabel" style="color:var(--gold); font-size:13px; font-weight:600;"></span>
+        </div>
+        <button type="button" class="btn-small" style="background:transparent; border:1px solid var(--line); color:var(--gray); padding:4px 10px;" onclick="closeAdminPromptsModal()">✕</button>
+      </div>
+      <p style="color:var(--gray); font-size:12px; margin-top:0;">Predefined 5-star reviews (1 to 10). When a customer taps or scans, they can copy one of these reviews to paste on Google. Blank entries will be omitted.</p>
+      <div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
+        <button type="button" class="btn-small" style="padding:5px 12px; font-size:12px;" onclick="resetAdminPromptsToDefault()">Load 10 Defaults</button>
+      </div>
+      <div id="adminPromptsInputs" style="display:flex; flex-direction:column; gap:8px;">
+        ${Array.from({ length: 10 }, (_, i) => `
+          <div>
+            <label style="font-size:11px; margin-bottom:2px;">Review #${i + 1}</label>
+            <input id="adminPrompt${i}" maxlength="150" placeholder="Review prompt #${i + 1}" style="margin-bottom:4px; font-size:13px;"/>
+          </div>
+        `).join('')}
+      </div>
+      <div style="display:flex; gap:10px; margin-top:16px;">
+        <button class="btn-small" style="flex:1;" onclick="saveAdminPrompts()">Save Reviews</button>
+        <button class="btn-small" style="flex:1; background:transparent; border:1px solid var(--line); color:var(--white);" onclick="closeAdminPromptsModal()">Cancel</button>
       </div>
     </div>
   </div>
