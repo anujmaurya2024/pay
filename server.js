@@ -1018,6 +1018,17 @@ app.get('/card/:cardId', async (req, res) => {
         </div>
       </div>
 
+      <div style="background:rgba(212,175,55,0.06); border:1px solid rgba(212,175,55,0.25); border-radius:10px; padding:12px 14px; margin-bottom:16px;">
+        <div style="font-size:12px; font-weight:700; color:var(--gold); margin-bottom:4px;">💡 Where to connect or edit these links?</div>
+        <p style="font-size:12px; color:var(--gray); margin:0 0 10px; line-height:1.4;">
+          Log in to your <strong>Customer Dashboard</strong> or the <strong>Admin Panel</strong> to connect your Google Reviews, WhatsApp, Instagram, and Website links.
+        </p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <a href="/dashboard" class="btn-small" style="text-decoration:none; display:inline-block; font-size:12px; padding:6px 12px; background:linear-gradient(180deg,var(--gold-soft),var(--gold)); color:#000; font-weight:700; border:none;">Customer Dashboard →</a>
+          <a href="/admin" class="btn-small" style="text-decoration:none; display:inline-block; font-size:12px; padding:6px 12px;">Admin Panel →</a>
+        </div>
+      </div>
+
       <label>Primary Destination</label>
       <input readonly value="${escapeHtml(destination || 'Not configured')}" style="margin-bottom:0;"/>
     </div>
@@ -1714,14 +1725,32 @@ app.get('/admin', requireAuth, async (req, res) => {
     </div>
 
     <div class="panel">
-      <h2>Change Card Destination</h2>
-      <p style="color:var(--gray); font-size:13px; margin-top:-6px;">Overrides where a specific card redirects, independent of its business's default. Leave blank to clear the override.</p>
+      <h2>Connect &amp; Manage Card Platforms</h2>
+      <p style="color:var(--gray); font-size:13px; margin-top:-6px;">Connect or update Google Review, WhatsApp, Instagram, and Website links for any card directly from Admin.</p>
       <form onsubmit="updateCardDestination(event)">
-        <label>Card</label>
+        <label>Select Card</label>
         <select name="cardId" required>${cardOptions.join('')}</select>
-        <label>New Destination URL</label>
-        <input name="destinationUrl" placeholder="https://instagram.com/yourbusiness"/>
-        <button class="btn-small" type="submit">Update Destination</button>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-top:10px;">
+          <div>
+            <label>⭐ Google Review Link</label>
+            <input name="googleReviewUrl" placeholder="https://g.page/business/review"/>
+          </div>
+          <div>
+            <label>💬 WhatsApp Number / Link</label>
+            <input name="whatsappNumber" placeholder="e.g. 918112280082"/>
+          </div>
+          <div>
+            <label>📸 Instagram Link or Handle</label>
+            <input name="instagramUrl" placeholder="https://instagram.com/business or @handle"/>
+          </div>
+          <div>
+            <label>🌐 Official Website URL</label>
+            <input name="websiteUrl" placeholder="https://business.com"/>
+          </div>
+        </div>
+
+        <button class="btn-small" type="submit" style="margin-top:14px;">Save Connected Platforms</button>
       </form>
     </div>
 
@@ -1926,12 +1955,29 @@ app.post('/admin/api/card/status', requireAuth, async (req, res) => {
 });
 
 app.post('/admin/api/card/destination', requireAuth, async (req, res) => {
-  const { cardId, destinationUrl } = req.body;
+  const { cardId, destinationUrl, googleReviewUrl, instagramUrl, whatsappNumber, websiteUrl } = req.body;
   if (!cardId) return res.status(400).json({ error: 'Missing cardId' });
   if (!(await adminOwnedCardOr403(cardId, res))) return;
-  // Allow clearing the override (empty string) to fall back to business default
-  if (destinationUrl && !isValidHttpUrl(destinationUrl)) return res.status(400).json({ error: 'Invalid URL' });
-  const card = await db.setCardDestination(cardId, destinationUrl);
+
+  if (destinationUrl && !isValidHttpUrl(destinationUrl)) return res.status(400).json({ error: 'Invalid destination URL' });
+  if (googleReviewUrl && !isValidHttpUrl(googleReviewUrl)) return res.status(400).json({ error: 'Invalid Google Review URL' });
+  if (websiteUrl && !isValidHttpUrl(websiteUrl)) return res.status(400).json({ error: 'Invalid Website URL' });
+
+  let formattedInsta = instagramUrl || null;
+  if (formattedInsta && !isValidHttpUrl(formattedInsta)) {
+    const handle = String(formattedInsta).trim().replace(/^@/, '');
+    if (handle) formattedInsta = `https://instagram.com/${handle}`;
+  }
+
+  const primaryDest = googleReviewUrl || websiteUrl || formattedInsta || (whatsappNumber ? db.formatWhatsAppUrl(whatsappNumber) : '') || destinationUrl || null;
+
+  const card = await db.setCardDetails(cardId, {
+    destinationUrl: primaryDest,
+    googleReviewUrl: googleReviewUrl || null,
+    instagramUrl: formattedInsta || null,
+    whatsappNumber: whatsappNumber || null,
+    websiteUrl: websiteUrl || null
+  });
   if (!card) return res.status(404).json({ error: 'Not found' });
   res.json(card);
 });
