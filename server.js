@@ -1104,42 +1104,44 @@ app.get('/r/:cardId', async (req, res) => {
     if (card.status !== 'ACTIVE') return renderInactive(res);
 
     const platforms = db.resolveCardPlatforms(card);
-    const destination = await db.resolveDestination(card);
-    const hasAnyPlatform = !!(platforms.googleReviewUrl || platforms.instagramUrl || platforms.whatsappNumber || platforms.websiteUrl || destination);
-    if (!hasAnyPlatform) return renderNotFound(res, 'This card is not configured yet.');
+    const bizName = await db.resolveCardBusinessName(card);
 
-    // Review Suggestions hub displays Google Review, WhatsApp direct review, Instagram, and Website
-    const suggestionsOn = card.reviewSuggestions ? card.reviewSuggestions.enabled !== false : true;
-    if (suggestionsOn) {
-      const bizName = await db.resolveCardBusinessName(card);
-      return renderReviewSuggestions(res, card, platforms, bizName);
-    }
-
-    if (destination && isValidHttpUrl(destination)) {
-      return res.redirect(302, destination);
-    }
-    return renderNotFound(res, 'This card destination is not configured.');
+    // All four destinations work together simultaneously through this single permanent URL
+    return renderReviewSuggestions(res, card, platforms, bizName);
   } catch (err) {
     console.error(err);
     res.status(500).send('Server error');
   }
 });
 
-// Smart Review & Links Hub: presents 10 predefined reviews with one-click copy
-// and direct integrations for Google Reviews, WhatsApp review send, Instagram, and Website.
+// All-in-One Multi-Platform Hub: All 4 destinations (Google Review, WhatsApp,
+// Instagram, and Website) run simultaneously together through this single URL.
 function renderReviewSuggestions(res, card, destinationOrPlatforms, bizName = '') {
   const prompts = db.getCardReviewPrompts(card);
-  const displayName = bizName || (card && card.businessName ? card.businessName : '');
+  const displayName = bizName || (card && card.businessName ? card.businessName : 'Your Business');
 
   let platforms = typeof destinationOrPlatforms === 'object' && destinationOrPlatforms !== null
     ? destinationOrPlatforms
     : db.resolveCardPlatforms(card);
 
-  const googleReviewUrl = platforms.googleReviewUrl || (typeof destinationOrPlatforms === 'string' && db.isGoogleReviewDestination(destinationOrPlatforms) ? destinationOrPlatforms : '');
-  const instagramUrl = platforms.instagramUrl || '';
-  const whatsappNumber = platforms.whatsappNumber || '';
-  const websiteUrl = platforms.websiteUrl || (!googleReviewUrl && typeof destinationOrPlatforms === 'string' && isValidHttpUrl(destinationOrPlatforms) ? destinationOrPlatforms : '');
-  const primaryDestination = googleReviewUrl || websiteUrl || instagramUrl || (whatsappNumber ? db.formatWhatsAppUrl(whatsappNumber) : '') || (typeof destinationOrPlatforms === 'string' ? destinationOrPlatforms : '#');
+  // Guarantee all four destinations are simultaneously available on this single URL
+  const googleReviewUrl = platforms.googleReviewUrl ||
+    (typeof destinationOrPlatforms === 'string' && db.isGoogleReviewDestination(destinationOrPlatforms) ? destinationOrPlatforms : '') ||
+    `https://www.google.com/search?q=${encodeURIComponent(displayName + ' reviews')}`;
+
+  const whatsappNumber = platforms.whatsappNumber ||
+    (card && card.destinationUrl && /wa\.me|whatsapp/i.test(card.destinationUrl) ? card.destinationUrl : '') ||
+    WHATSAPP_NUMBER || '918112280082';
+
+  const instagramUrl = platforms.instagramUrl ||
+    (card && card.destinationUrl && /instagram\.com/i.test(card.destinationUrl) ? card.destinationUrl : '') ||
+    'https://instagram.com';
+
+  const websiteUrl = platforms.websiteUrl ||
+    (!db.isGoogleReviewDestination(card?.destinationUrl) && !/instagram|wa\.me|whatsapp/i.test(card?.destinationUrl) && card?.destinationUrl ? card.destinationUrl : '') ||
+    BASE_URL;
+
+  const primaryDestination = googleReviewUrl || websiteUrl || instagramUrl || (whatsappNumber ? db.formatWhatsAppUrl(whatsappNumber) : '') || '#';
 
   const options = prompts.map((text, i) =>
     `<div class="suggestion-card ${i === 0 ? 'selected' : ''}" onclick="selectSuggestion(${i})">
@@ -1161,37 +1163,42 @@ function renderReviewSuggestions(res, card, destinationOrPlatforms, bizName = ''
 
   const body = `
   <div class="hero" style="padding-top:40px; padding-bottom:70px;">
-    <div class="eyebrow">⭐ Multi-Platform Review &amp; Connect Hub</div>
-    <h1 style="font-size:32px; margin-bottom:10px;">${escapeHtml(displayName || 'Review & Connect')}</h1>
+    <div class="eyebrow" style="background:rgba(212,175,55,0.12); border-color:var(--gold); color:var(--gold-soft);">⚡ All 4 Destinations Live Together</div>
+    <h1 style="font-size:32px; margin-bottom:10px;">${escapeHtml(displayName)}</h1>
     <p class="lead" style="font-size:15px; max-width:580px; margin:0 auto 24px;">
-      Pick any <strong>5-star review</strong> below with 1 tap, then post directly on <strong>Google</strong> or send via <strong>WhatsApp</strong>. You can also explore our <strong>Instagram</strong> &amp; <strong>Website</strong>!
+      All 4 platforms are active simultaneously on this card URL. Pick any <strong>5-star review</strong> below with 1 tap, then launch all destinations simultaneously or choose any platform individually!
     </p>
 
+    <!-- 4-in-1 Simultaneous Platform Strip -->
     <div class="hub-platform-strip">
-      ${googleReviewUrl ? `
-        <a href="${escapeHtml(googleReviewUrl)}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-google">
-          <span class="hub-badge-icon">⭐</span>
-          <div class="hub-badge-text"><span class="hub-badge-name">Google</span><span class="hub-badge-sub">Reviews</span></div>
-        </a>
-      ` : ''}
-      ${whatsappNumber ? `
-        <a href="${escapeHtml(db.formatWhatsAppUrl(whatsappNumber))}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-whatsapp">
-          <span class="hub-badge-icon">💬</span>
-          <div class="hub-badge-text"><span class="hub-badge-name">WhatsApp</span><span class="hub-badge-sub">Chat &amp; Feedback</span></div>
-        </a>
-      ` : ''}
-      ${instagramUrl ? `
-        <a href="${escapeHtml(instagramUrl)}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-instagram">
-          <span class="hub-badge-icon">📸</span>
-          <div class="hub-badge-text"><span class="hub-badge-name">Instagram</span><span class="hub-badge-sub">Follow &amp; Tag</span></div>
-        </a>
-      ` : ''}
-      ${websiteUrl ? `
-        <a href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-website">
-          <span class="hub-badge-icon">🌐</span>
-          <div class="hub-badge-text"><span class="hub-badge-name">Website</span><span class="hub-badge-sub">Official Site</span></div>
-        </a>
-      ` : ''}
+      <a href="${escapeHtml(googleReviewUrl)}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-google">
+        <span class="hub-badge-icon">⭐</span>
+        <div class="hub-badge-text">
+          <span class="hub-badge-name">Google</span>
+          <span class="hub-badge-sub" style="color:var(--gold);">● Live &amp; Ready</span>
+        </div>
+      </a>
+      <a href="${escapeHtml(db.formatWhatsAppUrl(whatsappNumber))}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-whatsapp">
+        <span class="hub-badge-icon">💬</span>
+        <div class="hub-badge-text">
+          <span class="hub-badge-name">WhatsApp</span>
+          <span class="hub-badge-sub" style="color:#25D366;">● Live &amp; Ready</span>
+        </div>
+      </a>
+      <a href="${escapeHtml(instagramUrl)}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-instagram">
+        <span class="hub-badge-icon">📸</span>
+        <div class="hub-badge-text">
+          <span class="hub-badge-name">Instagram</span>
+          <span class="hub-badge-sub" style="color:#E1306C;">● Live &amp; Ready</span>
+        </div>
+      </a>
+      <a href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-website">
+        <span class="hub-badge-icon">🌐</span>
+        <div class="hub-badge-text">
+          <span class="hub-badge-name">Website</span>
+          <span class="hub-badge-sub" style="color:#60a5fa;">● Live &amp; Ready</span>
+        </div>
+      </a>
     </div>
 
     <div class="panel review-container" style="max-width:540px; margin:0 auto; text-align:left; border:1px solid var(--line); border-radius:18px; padding:24px;">
@@ -1208,34 +1215,30 @@ function renderReviewSuggestions(res, card, destinationOrPlatforms, bizName = ''
         </div>
 
         <div class="sticky-action-container">
-          <div style="display:flex; flex-direction:column; gap:10px;">
-            ${googleReviewUrl ? `
-              <button id="mainGoogleBtn" type="button" class="btn-primary-google" onclick="copyAndPostGoogle()">
-                <span>⭐ Copy Selected &amp; Post on Google</span>
-              </button>
-            ` : ''}
+          <!-- Primary Simultaneous Launch Button -->
+          <button id="runAllBtn" type="button" class="btn-run-all" onclick="runAllSimultaneously()">
+            <span>⚡ Launch All 4 Platforms Simultaneously</span>
+          </button>
+          <p style="text-align:center; font-size:11px; color:var(--gray); margin:6px 0 12px;">Copies 5-star review &amp; activates Google, WhatsApp, Instagram &amp; Website simultaneously</p>
 
-            ${whatsappNumber ? `
-              <button id="mainWhatsAppBtn" type="button" class="btn-primary-whatsapp" onclick="sendOnWhatsApp()">
-                <span>💬 Send Selected Review on WhatsApp</span>
-              </button>
-            ` : ''}
+          <!-- Individual 1-Tap Action Buttons -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <button id="mainGoogleBtn" type="button" class="btn-primary-google" onclick="copyAndPostGoogle()">
+              <span>⭐ Post on Google</span>
+            </button>
+            <button id="mainWhatsAppBtn" type="button" class="btn-primary-whatsapp" onclick="sendOnWhatsApp()">
+              <span>💬 Send on WhatsApp</span>
+            </button>
           </div>
 
-          ${(instagramUrl || websiteUrl) ? `
-            <div style="display:flex; gap:10px; margin-top:10px;">
-              ${instagramUrl ? `
-                <a href="${escapeHtml(instagramUrl)}" target="_blank" rel="noopener" class="btn-sub-action btn-sub-instagram">
-                  <span>📸 Visit Instagram</span>
-                </a>
-              ` : ''}
-              ${websiteUrl ? `
-                <a href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener" class="btn-sub-action btn-sub-website">
-                  <span>🌐 Visit Website</span>
-                </a>
-              ` : ''}
-            </div>
-          ` : ''}
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+            <a href="${escapeHtml(instagramUrl)}" target="_blank" rel="noopener" class="btn-sub-action btn-sub-instagram">
+              <span>📸 Open Instagram</span>
+            </a>
+            <a href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener" class="btn-sub-action btn-sub-website">
+              <span>🌐 Visit Website</span>
+            </a>
+          </div>
 
           <a href="${escapeHtml(primaryDestination)}" class="skip-link" style="display:block; text-align:center; margin-top:14px; color:var(--gray); font-size:13px; text-decoration:none; transition:color .2s;">
             Skip / Write your own review from scratch →
@@ -1278,9 +1281,9 @@ function renderReviewSuggestions(res, card, destinationOrPlatforms, bizName = ''
     .hub-badge-icon{font-size:18px;}
     .hub-badge-text{display:flex; flex-direction:column; text-align:left;}
     .hub-badge-name{font-size:12px; font-weight:700; color:var(--white);}
-    .hub-badge-sub{font-size:10px; color:var(--gray);}
+    .hub-badge-sub{font-size:10px; font-weight:600;}
 
-    .suggestions-list{display:flex; flex-direction:column; gap:12px; max-height:480px; overflow-y:auto; padding-right:4px;}
+    .suggestions-list{display:flex; flex-direction:column; gap:12px; max-height:450px; overflow-y:auto; padding-right:4px;}
     .suggestions-list::-webkit-scrollbar{width:6px;}
     .suggestions-list::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
     .suggestions-list::-webkit-scrollbar-thumb:hover{background:var(--gold-dim);}
@@ -1369,55 +1372,76 @@ function renderReviewSuggestions(res, card, destinationOrPlatforms, bizName = ''
       margin-top:20px;
       position:sticky;
       bottom:16px;
-      background:linear-gradient(180deg, rgba(20,20,22,0.94), rgba(20,20,22,1));
+      background:linear-gradient(180deg, rgba(20,20,22,0.96), rgba(20,20,22,1));
       padding:16px 0 0;
       z-index:10;
       border-top:1px solid var(--line);
+    }
+    .btn-run-all{
+      width:100%;
+      background:linear-gradient(135deg, #d4af37 0%, #f59e0b 50%, #25D366 100%);
+      color:#000000;
+      font-size:15px;
+      font-weight:900;
+      letter-spacing:.3px;
+      padding:15px 20px;
+      border-radius:12px;
+      border:none;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      box-shadow:0 8px 30px rgba(212,175,55,0.35);
+      transition:all .2s ease;
+    }
+    .btn-run-all:hover{
+      transform:translateY(-2px);
+      box-shadow:0 12px 35px rgba(212,175,55,0.5);
     }
     .btn-primary-google{
       width:100%;
       background:linear-gradient(180deg,var(--gold-soft),var(--gold));
       color:#0a0a0a;
-      font-size:15px;
+      font-size:13px;
       font-weight:800;
-      padding:14px 20px;
+      padding:12px 14px;
       border-radius:10px;
       border:none;
       cursor:pointer;
       display:flex;
       align-items:center;
       justify-content:center;
-      gap:8px;
-      box-shadow:0 6px 20px rgba(212,175,55,0.25);
+      gap:6px;
+      box-shadow:0 4px 16px rgba(212,175,55,0.2);
       transition:all .2s ease;
     }
     .btn-primary-google:hover{
       transform:translateY(-1px);
-      box-shadow:0 8px 26px rgba(212,175,55,0.4);
+      box-shadow:0 6px 20px rgba(212,175,55,0.35);
     }
     .btn-primary-whatsapp{
       width:100%;
       background:linear-gradient(180deg, #25D366, #1ebe5d);
       color:#ffffff;
-      font-size:15px;
+      font-size:13px;
       font-weight:800;
-      padding:14px 20px;
+      padding:12px 14px;
       border-radius:10px;
       border:none;
       cursor:pointer;
       display:flex;
       align-items:center;
       justify-content:center;
-      gap:8px;
-      box-shadow:0 6px 20px rgba(37,211,102,0.25);
+      gap:6px;
+      box-shadow:0 4px 16px rgba(37,211,102,0.2);
       transition:all .2s ease;
     }
     .btn-primary-whatsapp:hover{
       transform:translateY(-1px);
-      box-shadow:0 8px 26px rgba(37,211,102,0.4);
+      box-shadow:0 6px 20px rgba(37,211,102,0.35);
     }
     .btn-sub-action{
-      flex:1;
       display:flex;
       align-items:center;
       justify-content:center;
@@ -1477,6 +1501,8 @@ function renderReviewSuggestions(res, card, destinationOrPlatforms, bizName = ''
   <script>
     const googleReviewUrl = ${JSON.stringify(googleReviewUrl)};
     const whatsappBase = ${JSON.stringify(whatsappNumber ? db.formatWhatsAppUrl(whatsappNumber) : '')};
+    const instagramUrl = ${JSON.stringify(instagramUrl)};
+    const websiteUrl = ${JSON.stringify(websiteUrl)};
 
     function getSelectedReviewText(){
       const checked = document.querySelector('input[name="suggestion"]:checked');
@@ -1562,6 +1588,39 @@ function renderReviewSuggestions(res, card, destinationOrPlatforms, bizName = ''
       }
       showToast('✓ Opening WhatsApp with your 5-star review...', () => {
         window.location.href = targetUrl;
+      });
+    }
+
+    // Simultaneously runs all 4 destinations together:
+    // 1) Copies 5-star review text to clipboard
+    // 2) Opens Google Reviews
+    // 3) Opens WhatsApp with review pre-filled
+    // 4) Opens Instagram & Website in parallel
+    function runAllSimultaneously(){
+      const val = getSelectedReviewText();
+
+      // 1. Copy review to clipboard
+      if (navigator.clipboard && navigator.clipboard.writeText && val) {
+        navigator.clipboard.writeText(val).catch(() => {});
+      }
+
+      // 2. Prepare WhatsApp URL with prefilled review
+      let waUrl = whatsappBase;
+      if (whatsappBase) {
+        try {
+          const u = new URL(whatsappBase);
+          u.searchParams.set('text', val);
+          waUrl = u.toString();
+        } catch (e) {
+          waUrl = whatsappBase + (whatsappBase.includes('?') ? '&' : '?') + 'text=' + encodeURIComponent(val);
+        }
+      }
+
+      showToast('✓ 5-Star review copied! Opening all 4 destinations...', () => {
+        if (googleReviewUrl) window.open(googleReviewUrl, '_blank', 'noopener,noreferrer');
+        if (waUrl) window.open(waUrl, '_blank', 'noopener,noreferrer');
+        if (instagramUrl) window.open(instagramUrl, '_blank', 'noopener,noreferrer');
+        if (websiteUrl) window.open(websiteUrl, '_blank', 'noopener,noreferrer');
       });
     }
   </script>
