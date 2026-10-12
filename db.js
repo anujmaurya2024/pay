@@ -45,6 +45,10 @@ const cardSchema = new mongoose.Schema({
   businessName:  { type: String, default: null },
   status:        { type: String, default: 'ACTIVE' },
   destinationUrl:{ type: String, default: null },
+  googleReviewUrl:{ type: String, default: null },
+  instagramUrl:  { type: String, default: null },
+  whatsappNumber:{ type: String, default: null },
+  websiteUrl:    { type: String, default: null },
   reviewSuggestions: {
     enabled: { type: Boolean, default: true },
     prompts:  { type: [String], default: undefined },
@@ -125,7 +129,7 @@ async function getCards() {
 async function getCardByPublicId(publicCardId) {
   return Card.findOne({ publicCardId }).lean();
 }
-async function createCard({ businessId, customerId, orderId, businessName, destinationUrl }) {
+async function createCard({ businessId, customerId, orderId, businessName, destinationUrl, googleReviewUrl, instagramUrl, whatsappNumber, websiteUrl }) {
   // Ensure publicCardId is unique
   let publicCardId;
   do {
@@ -142,6 +146,10 @@ async function createCard({ businessId, customerId, orderId, businessName, desti
     businessName: businessName || null,
     status: 'ACTIVE',
     destinationUrl: destinationUrl || null,
+    googleReviewUrl: googleReviewUrl || (destinationUrl && isGoogleReviewDestination(destinationUrl) ? destinationUrl : null),
+    instagramUrl: instagramUrl || null,
+    whatsappNumber: whatsappNumber || null,
+    websiteUrl: websiteUrl || null,
     reviewSuggestions: { enabled: true },
     primary: isFirstCard,
     createdAt: new Date().toISOString(),
@@ -155,10 +163,14 @@ async function setCardBusinessName(publicCardId, businessName) {
     { returnDocument: 'after' }
   ).lean();
 }
-async function setCardDetails(publicCardId, { businessName, destinationUrl }) {
+async function setCardDetails(publicCardId, { businessName, destinationUrl, googleReviewUrl, instagramUrl, whatsappNumber, websiteUrl }) {
   const update = {};
   if (businessName !== undefined) update.businessName = businessName || null;
   if (destinationUrl !== undefined) update.destinationUrl = destinationUrl || null;
+  if (googleReviewUrl !== undefined) update.googleReviewUrl = googleReviewUrl || null;
+  if (instagramUrl !== undefined) update.instagramUrl = instagramUrl || null;
+  if (whatsappNumber !== undefined) update.whatsappNumber = whatsappNumber || null;
+  if (websiteUrl !== undefined) update.websiteUrl = websiteUrl || null;
   return Card.findOneAndUpdate({ publicCardId }, update, { returnDocument: 'after' }).lean();
 }
 // Resolves the display name for a card: per-card override first, then linked
@@ -241,14 +253,67 @@ async function setCardDestination(publicCardId, destinationUrl) {
 }
 
 // ─── Destination helpers ─────────────────────────────────────────────────────
-async function resolveDestination(card) {
-  if (card.destinationUrl) return card.destinationUrl;
-  const biz = await getBusiness(card.businessId);
-  return biz ? biz.reviewUrl : null;
-}
 function isGoogleReviewDestination(url) {
   if (!url) return false;
   return /google\.com|g\.page|goo\.gl|g\.co/i.test(url);
+}
+
+function formatWhatsAppUrl(numberOrUrl, text = '') {
+  if (!numberOrUrl) return '';
+  const trimmed = String(numberOrUrl).trim();
+  const encodedText = text ? encodeURIComponent(text) : '';
+  
+  if (/^https?:\/\//i.test(trimmed)) {
+    try {
+      const u = new URL(trimmed);
+      if (text) {
+        u.searchParams.set('text', text);
+      }
+      return u.toString();
+    } catch {
+      return trimmed;
+    }
+  }
+  
+  const digits = trimmed.replace(/[^0-9]/g, '');
+  if (!digits) return '';
+  return `https://wa.me/${digits}${encodedText ? `?text=${encodedText}` : ''}`;
+}
+
+function resolveCardPlatforms(card) {
+  if (!card) return { googleReviewUrl: '', instagramUrl: '', whatsappNumber: '', websiteUrl: '' };
+  let googleReviewUrl = card.googleReviewUrl || '';
+  let instagramUrl = card.instagramUrl || '';
+  let whatsappNumber = card.whatsappNumber || '';
+  let websiteUrl = card.websiteUrl || '';
+
+  // Smart backward compatibility with destinationUrl
+  if (card.destinationUrl) {
+    if (!googleReviewUrl && isGoogleReviewDestination(card.destinationUrl)) {
+      googleReviewUrl = card.destinationUrl;
+    } else if (!instagramUrl && /instagram\.com/i.test(card.destinationUrl)) {
+      instagramUrl = card.destinationUrl;
+    } else if (!whatsappNumber && /wa\.me|whatsapp\.com/i.test(card.destinationUrl)) {
+      whatsappNumber = card.destinationUrl;
+    } else if (!websiteUrl && !googleReviewUrl) {
+      websiteUrl = card.destinationUrl;
+    }
+  }
+
+  return { googleReviewUrl, instagramUrl, whatsappNumber, websiteUrl };
+}
+
+async function resolveDestination(card) {
+  if (!card) return null;
+  if (card.googleReviewUrl) return card.googleReviewUrl;
+  if (card.destinationUrl) return card.destinationUrl;
+  if (card.websiteUrl) return card.websiteUrl;
+  if (card.instagramUrl) return card.instagramUrl;
+  if (card.whatsappNumber) {
+    return formatWhatsAppUrl(card.whatsappNumber);
+  }
+  const biz = await getBusiness(card.businessId);
+  return biz ? biz.reviewUrl : null;
 }
 
 // ─── CUSTOMERS ───────────────────────────────────────────────────────────────
@@ -339,7 +404,7 @@ module.exports = {
   setPrimaryCard, getPrimaryCard, getCardsByCustomer, setCardBusiness, setCardReviewSuggestions,
   setCardReviewPrompts, getCardReviewPrompts, DEFAULT_REVIEW_PROMPTS,
   setCardBusinessName, setCardDetails, resolveCardBusinessName,
-  resolveDestination, isGoogleReviewDestination,
+  resolveDestination, isGoogleReviewDestination, resolveCardPlatforms, formatWhatsAppUrl,
   getCustomerByEmail, getCustomerById, createCustomer, getCustomers, updateCustomerPassword,
   createOrder, getOrders, getOrdersByCustomer, getOrderById,
   markOrderPaid, markOrderFailed, markOrderCardsGenerated, setOrderCustomerId,

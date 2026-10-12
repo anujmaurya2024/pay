@@ -688,16 +688,44 @@ app.get('/dashboard', requireCustomerAuth, async (req, res) => {
       const redirectUrl = `${BASE_URL}/r/${c.publicCardId}`;
       const dest = await db.resolveDestination(c);
       const bizName = await db.resolveCardBusinessName(c);
+      const platforms = db.resolveCardPlatforms(c);
+
+      const badges = [];
+      if (platforms.googleReviewUrl) {
+        badges.push(`<a href="${escapeHtml(platforms.googleReviewUrl)}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; text-decoration:none; background:rgba(212,175,55,0.15); color:var(--gold); border:1px solid rgba(212,175,55,0.3);">⭐ Google</a>`);
+      }
+      if (platforms.whatsappNumber) {
+        const waLink = db.formatWhatsAppUrl(platforms.whatsappNumber);
+        badges.push(`<a href="${escapeHtml(waLink)}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; text-decoration:none; background:rgba(37,211,102,0.15); color:#25D366; border:1px solid rgba(37,211,102,0.3);">💬 WhatsApp</a>`);
+      }
+      if (platforms.instagramUrl) {
+        badges.push(`<a href="${escapeHtml(platforms.instagramUrl)}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; text-decoration:none; background:rgba(225,48,108,0.15); color:#E1306C; border:1px solid rgba(225,48,108,0.3);">📸 Instagram</a>`);
+      }
+      if (platforms.websiteUrl) {
+        badges.push(`<a href="${escapeHtml(platforms.websiteUrl)}" target="_blank" rel="noopener" style="display:inline-flex; align-items:center; gap:4px; padding:3px 8px; border-radius:12px; font-size:11px; font-weight:600; text-decoration:none; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.3);">🌐 Website</a>`);
+      }
+
       return `<tr>
       <td><code>${c.publicCardId}</code></td>
       <td>${escapeHtml(bizName)}</td>
       <td><span class="badge ${c.status === 'ACTIVE' ? 'active' : 'inactive'}">${c.status}</span></td>
-      <td style="max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(dest || '')}">${escapeHtml(dest || '—')}</td>
+      <td>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+          ${badges.length ? badges.join('') : '<span style="color:var(--gray); font-size:12px;">No links set</span>'}
+        </div>
+      </td>
       <td>
         <div style="display:flex; flex-wrap:wrap; gap:6px;">
           <a href="/card/${c.publicCardId}" class="btn-small" style="text-decoration:none;">View</a>
           <a href="/api/qr/${c.publicCardId}?download=1" class="btn-small" style="text-decoration:none;">QR</a>
-          <button class="btn-small edit-card-btn" data-card-id="${escapeHtml(c.publicCardId)}" data-business-name="${escapeHtml(bizName)}" data-destination="${escapeHtml(dest || '')}">Edit Card</button>
+          <button class="btn-small edit-card-btn"
+            data-card-id="${escapeHtml(c.publicCardId)}"
+            data-business-name="${escapeHtml(bizName)}"
+            data-google-review-url="${escapeHtml(platforms.googleReviewUrl || '')}"
+            data-instagram-url="${escapeHtml(platforms.instagramUrl || '')}"
+            data-whatsapp-number="${escapeHtml(platforms.whatsappNumber || '')}"
+            data-website-url="${escapeHtml(platforms.websiteUrl || '')}"
+            data-destination="${escapeHtml(dest || '')}">Edit Card</button>
           <button class="btn-small" onclick="toggleCardStatus('${c.publicCardId}','${c.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'}')">${c.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>
         </div>
       </td>
@@ -729,22 +757,40 @@ app.get('/dashboard', requireCustomerAuth, async (req, res) => {
 
     <div class="panel">
       <h2>Apply to All Cards (optional)</h2>
-      <p style="color:var(--gray); font-size:13px; margin-top:-6px;">A quick way to set the same business name and destination on every card at once. Each card can still be edited individually afterward — this never locks cards together.</p>
+      <p style="color:var(--gray); font-size:13px; margin-top:-6px;">A quick way to configure business name and all platform links (Google Review, WhatsApp, Instagram, Website) on every card at once. Each card can still be edited individually afterward.</p>
       <form onsubmit="applyToAll(event)">
         <label>Business Name</label>
         <input name="businessName" required placeholder="e.g. Rahul Cafe"/>
-        <label>Destination URL (Google Reviews / Instagram / WhatsApp / Website)</label>
-        <input name="destinationUrl" required placeholder="https://g.page/your-business/review"/>
-        <button class="btn-small" type="submit">Apply to All ${myCards.length} Cards</button>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(240px, 1fr)); gap:12px; margin-top:10px;">
+          <div>
+            <label>⭐ Google Review Link</label>
+            <input name="googleReviewUrl" placeholder="https://g.page/your-business/review"/>
+          </div>
+          <div>
+            <label>💬 WhatsApp Number or Link</label>
+            <input name="whatsappNumber" placeholder="e.g. 918112280082"/>
+          </div>
+          <div>
+            <label>📸 Instagram Profile Link</label>
+            <input name="instagramUrl" placeholder="https://instagram.com/yourbusiness or @yourbusiness"/>
+          </div>
+          <div>
+            <label>🌐 Official Website URL</label>
+            <input name="websiteUrl" placeholder="https://yourbusiness.com"/>
+          </div>
+        </div>
+
+        <button class="btn-small" type="submit" style="margin-top:14px;">Apply to All ${myCards.length} Cards</button>
       </form>
     </div>
 
     <div class="panel">
       <h2>My Cards (${myCards.length})</h2>
-      <p style="color:var(--gray); font-size:13px; margin-top:-6px;">Review Suggestions (if enabled) are managed by Tap2Review admin and cannot be changed here.</p>
+      <p style="color:var(--gray); font-size:13px; margin-top:-6px;">All cards support Google Review, WhatsApp direct review & chat, Instagram, and Website. Review suggestions are managed with 10 predefined 5-star reviews.</p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Card ID</th><th>Business Name</th><th>Status</th><th>Destination</th><th>Actions</th></tr></thead>
+          <thead><tr><th>Card ID</th><th>Business Name</th><th>Status</th><th>Platforms Connected</th><th>Actions</th></tr></thead>
           <tbody>${cardRows.join('') || '<tr><td colspan="5" style="color:var(--gray);">No cards yet.</td></tr>'}</tbody>
         </table>
       </div>
@@ -761,16 +807,28 @@ app.get('/dashboard', requireCustomerAuth, async (req, res) => {
     </div>
   </div>
 
-  <div id="editCardModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:100; align-items:center; justify-content:center;">
-    <div class="panel" style="max-width:380px; width:90%; margin:0;">
+  <div id="editCardModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:100; align-items:center; justify-content:center; backdrop-filter:blur(4px);">
+    <div class="panel" style="max-width:440px; width:92%; max-height:90vh; overflow-y:auto; margin:0; border:1px solid var(--line); border-radius:16px;">
       <h2>Edit Card <span id="editCardIdLabel" style="color:var(--gold);"></span></h2>
-      <p style="color:var(--gray); font-size:12px; margin-top:-6px;">Only this card is affected. Its Card ID and QR/NFC link never change.</p>
+      <p style="color:var(--gray); font-size:12px; margin-top:-6px;">Configure your Google Review, WhatsApp, Instagram, and Website links for this specific card.</p>
+      
       <label>Business Name</label>
-      <input id="editBusinessName" required/>
-      <label>Destination URL</label>
-      <input id="editDestinationUrl" required placeholder="https://..."/>
-      <div style="display:flex; gap:8px; margin-top:6px;">
-        <button class="btn-small" style="flex:1;" onclick="saveCardEdit()">Save</button>
+      <input id="editBusinessName" required placeholder="e.g. Rahul Cafe"/>
+
+      <label style="display:flex; align-items:center; gap:6px; margin-top:10px;">⭐ Google Review URL</label>
+      <input id="editGoogleReviewUrl" placeholder="https://g.page/your-business/review"/>
+
+      <label style="display:flex; align-items:center; gap:6px; margin-top:10px;">💬 WhatsApp Number / Chat Link</label>
+      <input id="editWhatsappNumber" placeholder="e.g. 918112280082 or +91 81122 80082"/>
+
+      <label style="display:flex; align-items:center; gap:6px; margin-top:10px;">📸 Instagram Profile URL or Handle</label>
+      <input id="editInstagramUrl" placeholder="https://instagram.com/yourbusiness or @handle"/>
+
+      <label style="display:flex; align-items:center; gap:6px; margin-top:10px;">🌐 Official Website URL</label>
+      <input id="editWebsiteUrl" placeholder="https://yourbusiness.com"/>
+
+      <div style="display:flex; gap:8px; margin-top:16px;">
+        <button class="btn-small" style="flex:1;" onclick="saveCardEdit()">Save Links</button>
         <button class="btn-small" style="flex:1; background:transparent; border:1px solid var(--line); color:var(--white);" onclick="closeEditModal()">Cancel</button>
       </div>
     </div>
@@ -796,26 +854,67 @@ async function ownedCardOr403(req, res) {
   return card;
 }
 
-// Edit a SINGLE card's business name + destination — never touches sibling cards.
+// Edit a SINGLE card's business name + multi-platform links — never touches sibling cards.
 app.post('/dashboard/api/card/:cardId/details', requireCustomerAuth, async (req, res) => {
   const card = await ownedCardOr403(req, res);
   if (!card) return;
-  const { businessName, destinationUrl } = req.body;
-  if (!businessName || !destinationUrl || !isValidHttpUrl(destinationUrl)) {
-    return res.status(400).json({ error: 'Invalid input' });
+  let { businessName, destinationUrl, googleReviewUrl, instagramUrl, whatsappNumber, websiteUrl } = req.body;
+  if (!businessName) {
+    return res.status(400).json({ error: 'Business name is required' });
   }
-  res.json(await db.setCardDetails(card.publicCardId, { businessName, destinationUrl }));
+  if (googleReviewUrl && !isValidHttpUrl(googleReviewUrl)) {
+    return res.status(400).json({ error: 'Invalid Google Review URL' });
+  }
+  if (websiteUrl && !isValidHttpUrl(websiteUrl)) {
+    return res.status(400).json({ error: 'Invalid Website URL' });
+  }
+  if (instagramUrl && !isValidHttpUrl(instagramUrl)) {
+    const handle = String(instagramUrl).trim().replace(/^@/, '');
+    if (handle) instagramUrl = `https://instagram.com/${handle}`;
+  }
+
+  const primaryDest = googleReviewUrl || websiteUrl || instagramUrl || (whatsappNumber ? db.formatWhatsAppUrl(whatsappNumber) : '') || destinationUrl || null;
+
+  const updated = await db.setCardDetails(card.publicCardId, {
+    businessName,
+    destinationUrl: primaryDest,
+    googleReviewUrl: googleReviewUrl || null,
+    instagramUrl: instagramUrl || null,
+    whatsappNumber: whatsappNumber || null,
+    websiteUrl: websiteUrl || null,
+  });
+  res.json(updated);
 });
 
-// Optional convenience: apply the same business name + destination to every
+// Optional convenience: apply the same business name + multi-platform links to every
 // card this customer owns. Each card remains independently editable afterward.
 app.post('/dashboard/api/apply-to-all', requireCustomerAuth, async (req, res) => {
-  const { businessName, destinationUrl } = req.body;
-  if (!businessName || !destinationUrl || !isValidHttpUrl(destinationUrl)) {
-    return res.status(400).json({ error: 'Invalid input' });
+  let { businessName, destinationUrl, googleReviewUrl, instagramUrl, whatsappNumber, websiteUrl } = req.body;
+  if (!businessName) {
+    return res.status(400).json({ error: 'Business name is required' });
   }
+  if (googleReviewUrl && !isValidHttpUrl(googleReviewUrl)) {
+    return res.status(400).json({ error: 'Invalid Google Review URL' });
+  }
+  if (websiteUrl && !isValidHttpUrl(websiteUrl)) {
+    return res.status(400).json({ error: 'Invalid Website URL' });
+  }
+  if (instagramUrl && !isValidHttpUrl(instagramUrl)) {
+    const handle = String(instagramUrl).trim().replace(/^@/, '');
+    if (handle) instagramUrl = `https://instagram.com/${handle}`;
+  }
+
+  const primaryDest = googleReviewUrl || websiteUrl || instagramUrl || (whatsappNumber ? db.formatWhatsAppUrl(whatsappNumber) : '') || destinationUrl || null;
+
   const myCards = await db.getCardsByCustomer(req.session.customerId);
-  await Promise.all(myCards.map(c => db.setCardDetails(c.publicCardId, { businessName, destinationUrl })));
+  await Promise.all(myCards.map(c => db.setCardDetails(c.publicCardId, {
+    businessName,
+    destinationUrl: primaryDest,
+    googleReviewUrl: googleReviewUrl || null,
+    instagramUrl: instagramUrl || null,
+    whatsappNumber: whatsappNumber || null,
+    websiteUrl: websiteUrl || null,
+  })));
   res.json({ updated: myCards.length });
 });
 
@@ -844,6 +943,7 @@ app.get('/card/:cardId', async (req, res) => {
     const isActive = card.status === 'ACTIVE';
     const destination = await db.resolveDestination(card);
     const bizName = await db.resolveCardBusinessName(card);
+    const platforms = db.resolveCardPlatforms(card);
     const qrTs = Date.now(); // cache-bust so QR always reflects latest destination on refresh
 
     // The physical card itself is universal and destination-neutral — no business
@@ -876,7 +976,7 @@ app.get('/card/:cardId', async (req, res) => {
 
     ${!isActive ? `<p style="color:#e88; margin-top:16px; font-size:13px; text-align:center;">⚠ This card is currently INACTIVE — tap/scan will not redirect.</p>` : ''}
 
-    <div class="panel" style="max-width:420px; margin:24px auto 0; text-align:left;">
+    <div class="panel" style="max-width:440px; margin:24px auto 0; text-align:left;">
       <h2 style="margin-bottom:16px;">Card Details</h2>
       <p style="color:#666; font-size:12px; margin:-10px 0 16px;">The physical card is universal — this info is only for your reference and never printed on the card itself.</p>
       <label>Card ID</label>
@@ -898,7 +998,27 @@ app.get('/card/:cardId', async (req, res) => {
       </div>
       <p style="color:#666; font-size:12px; margin:-8px 0 16px;">The NFC URL is always identical to the Permanent Redirect URL above.</p>
 
-      <label>Current Destination (where this card redirects right now)</label>
+      <label>Connected Review &amp; Social Platforms</label>
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:10px 14px; border-radius:8px; border:1px solid var(--line);">
+          <span style="display:inline-flex; align-items:center; gap:6px;">⭐ Google Review</span>
+          <span style="font-size:12px;">${platforms.googleReviewUrl ? `<a href="${escapeHtml(platforms.googleReviewUrl)}" target="_blank" rel="noopener" style="color:var(--gold); font-weight:600;">Open Link ↗</a>` : '<span style="color:var(--gray);">Not configured</span>'}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:10px 14px; border-radius:8px; border:1px solid var(--line);">
+          <span style="display:inline-flex; align-items:center; gap:6px;">💬 WhatsApp Review</span>
+          <span style="font-size:12px;">${platforms.whatsappNumber ? `<a href="${escapeHtml(db.formatWhatsAppUrl(platforms.whatsappNumber))}" target="_blank" rel="noopener" style="color:#25D366; font-weight:600;">Open Chat ↗</a>` : '<span style="color:var(--gray);">Not configured</span>'}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:10px 14px; border-radius:8px; border:1px solid var(--line);">
+          <span style="display:inline-flex; align-items:center; gap:6px;">📸 Instagram</span>
+          <span style="font-size:12px;">${platforms.instagramUrl ? `<a href="${escapeHtml(platforms.instagramUrl)}" target="_blank" rel="noopener" style="color:#E1306C; font-weight:600;">Open Profile ↗</a>` : '<span style="color:var(--gray);">Not configured</span>'}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); padding:10px 14px; border-radius:8px; border:1px solid var(--line);">
+          <span style="display:inline-flex; align-items:center; gap:6px;">🌐 Official Website</span>
+          <span style="font-size:12px;">${platforms.websiteUrl ? `<a href="${escapeHtml(platforms.websiteUrl)}" target="_blank" rel="noopener" style="color:#60a5fa; font-weight:600;">Visit Site ↗</a>` : '<span style="color:var(--gray);">Not configured</span>'}</span>
+        </div>
+      </div>
+
+      <label>Primary Destination</label>
       <input readonly value="${escapeHtml(destination || 'Not configured')}" style="margin-bottom:0;"/>
     </div>
 
@@ -938,7 +1058,13 @@ app.get('/api/qr/demo', async (req, res) => {
   }
 });
 app.get('/demo/redirect', (req, res) => {
-  return renderReviewSuggestions(res, { businessName: 'Demo Business', reviewSuggestions: { enabled: true } }, DEMO_DESTINATION_URL);
+  const demoPlatforms = {
+    googleReviewUrl: DEMO_DESTINATION_URL,
+    instagramUrl: 'https://instagram.com',
+    whatsappNumber: WHATSAPP_NUMBER || '918112280082',
+    websiteUrl: BASE_URL
+  };
+  return renderReviewSuggestions(res, { businessName: 'Demo Business', reviewSuggestions: { enabled: true } }, demoPlatforms, 'Demo Business');
 });
 
 app.get('/api/qr/:cardId', async (req, res) => {
@@ -966,29 +1092,43 @@ app.get('/r/:cardId', async (req, res) => {
     if (!card) return renderNotFound(res);
     if (card.status !== 'ACTIVE') return renderInactive(res);
 
+    const platforms = db.resolveCardPlatforms(card);
     const destination = await db.resolveDestination(card);
-    if (!destination || !isValidHttpUrl(destination)) return renderNotFound(res, 'This card is not configured yet.');
+    const hasAnyPlatform = !!(platforms.googleReviewUrl || platforms.instagramUrl || platforms.whatsappNumber || platforms.websiteUrl || destination);
+    if (!hasAnyPlatform) return renderNotFound(res, 'This card is not configured yet.');
 
-    // When the card points to Google Review, show 10 predefined reviews to help customers
-    // quickly copy and post their 5-star review. Non-review destinations redirect directly.
+    // Review Suggestions hub displays Google Review, WhatsApp direct review, Instagram, and Website
     const suggestionsOn = card.reviewSuggestions ? card.reviewSuggestions.enabled !== false : true;
-    if (suggestionsOn && db.isGoogleReviewDestination(destination)) {
+    if (suggestionsOn) {
       const bizName = await db.resolveCardBusinessName(card);
-      return renderReviewSuggestions(res, card, destination, bizName);
+      return renderReviewSuggestions(res, card, platforms, bizName);
     }
 
-    return res.redirect(302, destination);
+    if (destination && isValidHttpUrl(destination)) {
+      return res.redirect(302, destination);
+    }
+    return renderNotFound(res, 'This card destination is not configured.');
   } catch (err) {
     console.error(err);
     res.status(500).send('Server error');
   }
 });
 
-// Shown when user wants to review (destination is Google Review or Demo),
-// presenting 10 predefined reviews to choose from with one-click copy.
-function renderReviewSuggestions(res, card, destination, bizName = '') {
+// Smart Review & Links Hub: presents 10 predefined reviews with one-click copy
+// and direct integrations for Google Reviews, WhatsApp review send, Instagram, and Website.
+function renderReviewSuggestions(res, card, destinationOrPlatforms, bizName = '') {
   const prompts = db.getCardReviewPrompts(card);
   const displayName = bizName || (card && card.businessName ? card.businessName : '');
+
+  let platforms = typeof destinationOrPlatforms === 'object' && destinationOrPlatforms !== null
+    ? destinationOrPlatforms
+    : db.resolveCardPlatforms(card);
+
+  const googleReviewUrl = platforms.googleReviewUrl || (typeof destinationOrPlatforms === 'string' && db.isGoogleReviewDestination(destinationOrPlatforms) ? destinationOrPlatforms : '');
+  const instagramUrl = platforms.instagramUrl || '';
+  const whatsappNumber = platforms.whatsappNumber || '';
+  const websiteUrl = platforms.websiteUrl || (!googleReviewUrl && typeof destinationOrPlatforms === 'string' && isValidHttpUrl(destinationOrPlatforms) ? destinationOrPlatforms : '');
+  const primaryDestination = googleReviewUrl || websiteUrl || instagramUrl || (whatsappNumber ? db.formatWhatsAppUrl(whatsappNumber) : '') || (typeof destinationOrPlatforms === 'string' ? destinationOrPlatforms : '#');
 
   const options = prompts.map((text, i) =>
     `<div class="suggestion-card ${i === 0 ? 'selected' : ''}" onclick="selectSuggestion(${i})">
@@ -1009,43 +1149,127 @@ function renderReviewSuggestions(res, card, destination, bizName = '') {
   ).join('');
 
   const body = `
-  <div class="hero" style="padding-top:40px; padding-bottom:60px;">
-    <div class="eyebrow">⭐ 5-Star Review Suggestions</div>
-    <h1 style="font-size:30px; margin-bottom:10px;">How was your experience?</h1>
-    <p class="lead" style="font-size:15px; max-width:560px; margin:0 auto 24px;">
-      ${displayName ? `Help support <strong>${escapeHtml(displayName)}</strong> on Google! ` : ''}Pick one of the <strong>10 predefined reviews</strong> below, copy it with one tap, and paste it directly on Google Reviews.
+  <div class="hero" style="padding-top:40px; padding-bottom:70px;">
+    <div class="eyebrow">⭐ Multi-Platform Review &amp; Connect Hub</div>
+    <h1 style="font-size:32px; margin-bottom:10px;">${escapeHtml(displayName || 'Review & Connect')}</h1>
+    <p class="lead" style="font-size:15px; max-width:580px; margin:0 auto 24px;">
+      Pick any <strong>5-star review</strong> below with 1 tap, then post directly on <strong>Google</strong> or send via <strong>WhatsApp</strong>. You can also explore our <strong>Instagram</strong> &amp; <strong>Website</strong>!
     </p>
 
-    <div class="panel review-container" style="max-width:540px; margin:0 auto; text-align:left; border:1px solid var(--line); border-radius:16px; padding:24px;">
+    <div class="hub-platform-strip">
+      ${googleReviewUrl ? `
+        <a href="${escapeHtml(googleReviewUrl)}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-google">
+          <span class="hub-badge-icon">⭐</span>
+          <div class="hub-badge-text"><span class="hub-badge-name">Google</span><span class="hub-badge-sub">Reviews</span></div>
+        </a>
+      ` : ''}
+      ${whatsappNumber ? `
+        <a href="${escapeHtml(db.formatWhatsAppUrl(whatsappNumber))}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-whatsapp">
+          <span class="hub-badge-icon">💬</span>
+          <div class="hub-badge-text"><span class="hub-badge-name">WhatsApp</span><span class="hub-badge-sub">Chat &amp; Feedback</span></div>
+        </a>
+      ` : ''}
+      ${instagramUrl ? `
+        <a href="${escapeHtml(instagramUrl)}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-instagram">
+          <span class="hub-badge-icon">📸</span>
+          <div class="hub-badge-text"><span class="hub-badge-name">Instagram</span><span class="hub-badge-sub">Follow &amp; Tag</span></div>
+        </a>
+      ` : ''}
+      ${websiteUrl ? `
+        <a href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener" class="hub-badge-item hub-badge-website">
+          <span class="hub-badge-icon">🌐</span>
+          <div class="hub-badge-text"><span class="hub-badge-name">Website</span><span class="hub-badge-sub">Official Site</span></div>
+        </a>
+      ` : ''}
+    </div>
+
+    <div class="panel review-container" style="max-width:540px; margin:0 auto; text-align:left; border:1px solid var(--line); border-radius:18px; padding:24px;">
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; padding-bottom:12px; border-bottom:1px solid var(--line);">
         <span style="font-size:13px; font-weight:700; color:var(--gold); text-transform:uppercase; letter-spacing:1px;">
-          ✨ 10 Predefined Reviews
+          ✨ 10 Predefined 5-Star Reviews
         </span>
         <span style="font-size:12px; color:var(--gray);">Tap any to select</span>
       </div>
 
-      <form id="suggForm" onsubmit="event.preventDefault(); copyAndContinue();">
+      <form id="suggForm" onsubmit="event.preventDefault();">
         <div class="suggestions-list">
           ${options}
         </div>
 
-        <div style="margin-top:24px; position:sticky; bottom:20px; background:linear-gradient(180deg, rgba(20,20,22,0.92), rgba(20,20,22,1)); padding:16px 0 0; z-index:10; border-top:1px solid var(--line);">
-          <button id="mainCopyBtn" type="button" class="btn-primary" style="width:100%; font-size:16px; padding:15px 24px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;" onclick="copyAndContinue()">
-            <span>⭐ Copy Selected &amp; Continue to Google</span>
-          </button>
-          <a href="${escapeHtml(destination)}" class="skip-link" style="display:block; text-align:center; margin-top:14px; color:var(--gray); font-size:13px; text-decoration:none; transition:color .2s;">
-            Skip / Write your own review on Google →
+        <div class="sticky-action-container">
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            ${googleReviewUrl ? `
+              <button id="mainGoogleBtn" type="button" class="btn-primary-google" onclick="copyAndPostGoogle()">
+                <span>⭐ Copy Selected &amp; Post on Google</span>
+              </button>
+            ` : ''}
+
+            ${whatsappNumber ? `
+              <button id="mainWhatsAppBtn" type="button" class="btn-primary-whatsapp" onclick="sendOnWhatsApp()">
+                <span>💬 Send Selected Review on WhatsApp</span>
+              </button>
+            ` : ''}
+          </div>
+
+          ${(instagramUrl || websiteUrl) ? `
+            <div style="display:flex; gap:10px; margin-top:10px;">
+              ${instagramUrl ? `
+                <a href="${escapeHtml(instagramUrl)}" target="_blank" rel="noopener" class="btn-sub-action btn-sub-instagram">
+                  <span>📸 Visit Instagram</span>
+                </a>
+              ` : ''}
+              ${websiteUrl ? `
+                <a href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener" class="btn-sub-action btn-sub-website">
+                  <span>🌐 Visit Website</span>
+                </a>
+              ` : ''}
+            </div>
+          ` : ''}
+
+          <a href="${escapeHtml(primaryDestination)}" class="skip-link" style="display:block; text-align:center; margin-top:14px; color:var(--gray); font-size:13px; text-decoration:none; transition:color .2s;">
+            Skip / Write your own review from scratch →
           </a>
         </div>
       </form>
     </div>
   </div>
 
-  <div id="copyToast" class="copy-toast">✓ Review copied to clipboard! Opening Google...</div>
+  <div id="copyToast" class="copy-toast">✓ Review copied to clipboard!</div>
 
   <style>
     .review-container{box-shadow:0 20px 50px rgba(0,0,0,0.5);}
-    .suggestions-list{display:flex; flex-direction:column; gap:12px; max-height:550px; overflow-y:auto; padding-right:4px;}
+    .hub-platform-strip{
+      display:grid;
+      grid-template-columns:repeat(auto-fit, minmax(115px, 1fr));
+      gap:10px;
+      max-width:540px;
+      margin:0 auto 20px;
+    }
+    .hub-badge-item{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      padding:10px 12px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,0.02);
+      text-decoration:none;
+      transition:all .2s ease;
+    }
+    .hub-badge-item:hover{
+      transform:translateY(-2px);
+      background:rgba(255,255,255,0.05);
+    }
+    .hub-badge-google:hover{border-color:var(--gold);}
+    .hub-badge-whatsapp:hover{border-color:#25D366; background:rgba(37,211,102,0.06);}
+    .hub-badge-instagram:hover{border-color:#E1306C; background:rgba(225,48,108,0.06);}
+    .hub-badge-website:hover{border-color:#3b82f6; background:rgba(59,130,246,0.06);}
+    .hub-badge-icon{font-size:18px;}
+    .hub-badge-text{display:flex; flex-direction:column; text-align:left;}
+    .hub-badge-name{font-size:12px; font-weight:700; color:var(--white);}
+    .hub-badge-sub{font-size:10px; color:var(--gray);}
+
+    .suggestions-list{display:flex; flex-direction:column; gap:12px; max-height:480px; overflow-y:auto; padding-right:4px;}
     .suggestions-list::-webkit-scrollbar{width:6px;}
     .suggestions-list::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
     .suggestions-list::-webkit-scrollbar-thumb:hover{background:var(--gold-dim);}
@@ -1130,6 +1354,88 @@ function renderReviewSuggestions(res, card, destination, bizName = '') {
       border-color:#4caf50;
       color:#4caf50;
     }
+    .sticky-action-container{
+      margin-top:20px;
+      position:sticky;
+      bottom:16px;
+      background:linear-gradient(180deg, rgba(20,20,22,0.94), rgba(20,20,22,1));
+      padding:16px 0 0;
+      z-index:10;
+      border-top:1px solid var(--line);
+    }
+    .btn-primary-google{
+      width:100%;
+      background:linear-gradient(180deg,var(--gold-soft),var(--gold));
+      color:#0a0a0a;
+      font-size:15px;
+      font-weight:800;
+      padding:14px 20px;
+      border-radius:10px;
+      border:none;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      box-shadow:0 6px 20px rgba(212,175,55,0.25);
+      transition:all .2s ease;
+    }
+    .btn-primary-google:hover{
+      transform:translateY(-1px);
+      box-shadow:0 8px 26px rgba(212,175,55,0.4);
+    }
+    .btn-primary-whatsapp{
+      width:100%;
+      background:linear-gradient(180deg, #25D366, #1ebe5d);
+      color:#ffffff;
+      font-size:15px;
+      font-weight:800;
+      padding:14px 20px;
+      border-radius:10px;
+      border:none;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:8px;
+      box-shadow:0 6px 20px rgba(37,211,102,0.25);
+      transition:all .2s ease;
+    }
+    .btn-primary-whatsapp:hover{
+      transform:translateY(-1px);
+      box-shadow:0 8px 26px rgba(37,211,102,0.4);
+    }
+    .btn-sub-action{
+      flex:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:10px 14px;
+      border-radius:8px;
+      font-size:13px;
+      font-weight:600;
+      text-decoration:none;
+      transition:all .2s ease;
+      border:1px solid var(--line);
+    }
+    .btn-sub-instagram{
+      background:rgba(225,48,108,0.12);
+      color:#f472b6;
+      border-color:rgba(225,48,108,0.3);
+    }
+    .btn-sub-instagram:hover{
+      background:rgba(225,48,108,0.25);
+      transform:translateY(-1px);
+    }
+    .btn-sub-website{
+      background:rgba(59,130,246,0.12);
+      color:#93c5fd;
+      border-color:rgba(59,130,246,0.3);
+    }
+    .btn-sub-website:hover{
+      background:rgba(59,130,246,0.25);
+      transform:translateY(-1px);
+    }
     .skip-link:hover{
       color:var(--white);
     }
@@ -1158,7 +1464,18 @@ function renderReviewSuggestions(res, card, destination, bizName = '') {
   </style>
 
   <script>
-    const destinationUrl = ${JSON.stringify(destination)};
+    const googleReviewUrl = ${JSON.stringify(googleReviewUrl)};
+    const whatsappBase = ${JSON.stringify(whatsappNumber ? db.formatWhatsAppUrl(whatsappNumber) : '')};
+
+    function getSelectedReviewText(){
+      const checked = document.querySelector('input[name="suggestion"]:checked');
+      if (checked) {
+        const p = checked.closest('.suggestion-card').querySelector('.suggestion-text');
+        if (p) return p.textContent.trim();
+      }
+      const first = document.getElementById('promptText0');
+      return first ? first.textContent.trim() : '';
+    }
 
     function selectSuggestion(index){
       const cards = document.querySelectorAll('.suggestion-card');
@@ -1177,7 +1494,7 @@ function renderReviewSuggestions(res, card, destination, bizName = '') {
     function showToast(text, doneCallback){
       const toast = document.getElementById('copyToast');
       if (toast) {
-        toast.textContent = text || '✓ Copied to clipboard! Opening Google...';
+        toast.textContent = text || '✓ Copied to clipboard!';
         toast.classList.add('show');
         setTimeout(() => {
           if (doneCallback) doneCallback();
@@ -1194,42 +1511,51 @@ function renderReviewSuggestions(res, card, destination, bizName = '') {
       const text = textElem ? textElem.textContent : '';
       const chip = e.currentTarget;
 
-      function proceed(){
-        showToast('✓ Review copied! Opening Google...', () => {
-          window.location.href = destinationUrl;
-        });
-      }
-
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(() => {
           chip.classList.add('copied');
           chip.innerHTML = '<span>✓</span> <span>Copied!</span>';
-          proceed();
-        }).catch(proceed);
+          showToast('✓ Review copied to clipboard!');
+        }).catch(() => {
+          showToast('✓ Selected review!');
+        });
       } else {
-        proceed();
+        showToast('✓ Selected review!');
       }
     }
 
-    function copyAndContinue(){
-      const checked = document.querySelector('input[name="suggestion"]:checked');
-      const val = checked ? checked.closest('.suggestion-card').querySelector('.suggestion-text').textContent : '';
-
+    function copyAndPostGoogle(){
+      const val = getSelectedReviewText();
       function proceed(){
-        showToast('✓ Review copied! Opening Google...', () => {
-          window.location.href = destinationUrl;
+        showToast('✓ Review copied! Opening Google Reviews...', () => {
+          if (googleReviewUrl) window.location.href = googleReviewUrl;
         });
       }
-
       if (navigator.clipboard && navigator.clipboard.writeText && val) {
         navigator.clipboard.writeText(val).then(proceed).catch(proceed);
       } else {
         proceed();
       }
     }
+
+    function sendOnWhatsApp(){
+      const val = getSelectedReviewText();
+      if (!whatsappBase) return;
+      let targetUrl = whatsappBase;
+      try {
+        const u = new URL(whatsappBase);
+        u.searchParams.set('text', val);
+        targetUrl = u.toString();
+      } catch (e) {
+        targetUrl = whatsappBase + (whatsappBase.includes('?') ? '&' : '?') + 'text=' + encodeURIComponent(val);
+      }
+      showToast('✓ Opening WhatsApp with your 5-star review...', () => {
+        window.location.href = targetUrl;
+      });
+    }
   </script>
   `;
-  res.send(page({ title: 'Leave a review — Tap2Review', body }));
+  res.send(page({ title: `${displayName || 'Review & Connect'} — Tap2Review`, body }));
 }
 
 function renderNotFound(res, msg = "This card doesn't exist or is no longer valid.") {
@@ -1270,7 +1596,7 @@ app.get('/admin', requireAuth, async (req, res) => {
           <button class="btn-small" onclick="copyRedirectUrl('${redirectUrl}')">Copy URL</button>
           <button class="btn-small" onclick="toggleStatus('${c.publicCardId}','${c.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'}')">${c.status === 'ACTIVE' ? 'Deactivate' : 'Activate'}</button>
           ${!c.primary ? `<button class="btn-small" onclick="setPrimary('${c.publicCardId}')">Set Homepage</button>` : ''}
-          ${isGoogle ? `<button class="btn-small edit-admin-prompts-btn" data-card-id="${escapeHtml(c.publicCardId)}" data-business-name="${escapeHtml(bizName)}" data-prompts="${escapeHtml(JSON.stringify(prompts))}">Review Options</button>` : ''}
+          <button class="btn-small edit-admin-prompts-btn" data-card-id="${escapeHtml(c.publicCardId)}" data-business-name="${escapeHtml(bizName)}" data-prompts="${escapeHtml(JSON.stringify(prompts))}">Review Options</button>
         </div>
       </td>
     </tr>`;
@@ -1280,7 +1606,8 @@ app.get('/admin', requireAuth, async (req, res) => {
     const suggRows = await Promise.all(allCards.map(async c => {
       const dest = await db.resolveDestination(c);
       const bizName = await db.resolveCardBusinessName(c);
-      const isGoogle = db.isGoogleReviewDestination(dest);
+      const platforms = db.resolveCardPlatforms(c);
+      const hasReviewHub = !!(platforms.googleReviewUrl || platforms.whatsappNumber || platforms.instagramUrl || platforms.websiteUrl || dest);
       const on = c.reviewSuggestions ? c.reviewSuggestions.enabled !== false : true;
       const prompts = db.getCardReviewPrompts(c);
       const ownerLabel = c.customerId
@@ -1291,12 +1618,12 @@ app.get('/admin', requireAuth, async (req, res) => {
               <td>${escapeHtml(bizName)}</td>
               <td>${ownerLabel}</td>
               <td style="max-width:170px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(dest || '')}">${escapeHtml(dest || '—')}</td>
-              <td>${isGoogle ? (on ? '<span class="badge active">ON</span>' : '<span class="badge inactive">OFF</span>') : '<span style="color:#666;">N/A (non-Google)</span>'}</td>
+              <td>${hasReviewHub ? (on ? '<span class="badge active">ON</span>' : '<span class="badge inactive">OFF</span>') : '<span style="color:#666;">No destination</span>'}</td>
               <td>
                 <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                  ${isGoogle ? `<button class="btn-small" onclick="toggleAdminSuggestions('${c.publicCardId}', ${!on})">${on ? 'Turn Off' : 'Turn On'}</button>` : ''}
-                  ${isGoogle ? `<button class="btn-small edit-admin-prompts-btn" data-card-id="${escapeHtml(c.publicCardId)}" data-business-name="${escapeHtml(bizName)}" data-prompts="${escapeHtml(JSON.stringify(prompts))}">Edit Reviews</button>` : ''}
-                  ${isGoogle ? `<a href="/r/${c.publicCardId}" target="_blank" class="btn-small" style="text-decoration:none; display:inline-block;">Test Review</a>` : ''}
+                  ${hasReviewHub ? `<button class="btn-small" onclick="toggleAdminSuggestions('${c.publicCardId}', ${!on})">${on ? 'Turn Off' : 'Turn On'}</button>` : ''}
+                  ${hasReviewHub ? `<button class="btn-small edit-admin-prompts-btn" data-card-id="${escapeHtml(c.publicCardId)}" data-business-name="${escapeHtml(bizName)}" data-prompts="${escapeHtml(JSON.stringify(prompts))}">Edit Reviews</button>` : ''}
+                  ${hasReviewHub ? `<a href="/r/${c.publicCardId}" target="_blank" class="btn-small" style="text-decoration:none; display:inline-block;">Test Review</a>` : ''}
                 </div>
               </td>
             </tr>`;
@@ -1536,8 +1863,10 @@ app.post('/admin/api/card/:cardId/suggestions', requireAuth, async (req, res) =>
   const card = await db.getCardByPublicId(req.params.cardId);
   if (!card) return res.status(404).json({ error: 'Card not found' });
   const dest = await db.resolveDestination(card);
-  if (req.body.enabled && !db.isGoogleReviewDestination(dest)) {
-    return res.status(400).json({ error: 'Review Suggestions only apply to Google Review destinations.' });
+  const platforms = db.resolveCardPlatforms(card);
+  const hasPlatform = !!(platforms.googleReviewUrl || platforms.whatsappNumber || platforms.instagramUrl || platforms.websiteUrl || dest);
+  if (req.body.enabled && !hasPlatform) {
+    return res.status(400).json({ error: 'Review Suggestions require at least one configured destination.' });
   }
   res.json(await db.setCardReviewSuggestions(card.publicCardId, !!req.body.enabled));
 });
@@ -1546,8 +1875,10 @@ app.post('/admin/api/card/:cardId/prompts', requireAuth, async (req, res) => {
   const card = await db.getCardByPublicId(req.params.cardId);
   if (!card) return res.status(404).json({ error: 'Card not found' });
   const dest = await db.resolveDestination(card);
-  if (!db.isGoogleReviewDestination(dest)) {
-    return res.status(400).json({ error: 'Review Suggestions only apply to Google Review destinations.' });
+  const platforms = db.resolveCardPlatforms(card);
+  const hasPlatform = !!(platforms.googleReviewUrl || platforms.whatsappNumber || platforms.instagramUrl || platforms.websiteUrl || dest);
+  if (!hasPlatform) {
+    return res.status(400).json({ error: 'Please configure at least one destination URL before customizing review suggestions.' });
   }
   const prompts = Array.isArray(req.body.prompts) ? req.body.prompts.map(p => String(p).trim()).filter(Boolean) : [];
   if (prompts.length < 1 || prompts.length > 10) {
